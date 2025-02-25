@@ -598,7 +598,11 @@ let merge_constraint initial_env loc sg lid constr =
         in
         let typedtree_extra_opt = match mty with
           | Check_only _ -> None
-          | Build_TypedTree mty_tree -> Some (Twith_modtype mty_tree)
+          | Build_TypedTree mty_tree ->
+              if not destructive_substitution then
+                Some (Twith_modtype mty_tree)
+              else
+                Some (Twith_modtypesubst mty_tree)
         in
         if not destructive_substitution then
           let mtd': modtype_declaration =
