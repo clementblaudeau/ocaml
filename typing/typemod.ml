@@ -456,6 +456,20 @@ and modtype_info =
   | Check_only      of Types.module_type
   | Build_TypedTree of Typedtree.module_type
 
+let modtype_info_extract_modtype mty =
+  match mty with
+  | Check_only mty_type -> mty_type
+  | Build_TypedTree mty_tree -> mty_tree.mty_type
+
+let modtype_info_build_typedtree mty destructive =
+  match mty with
+  | Check_only _ -> None
+  | Build_TypedTree mty_tree ->
+      if not destructive then
+        Some (Twith_modtype mty_tree)
+      else
+        Some (Twith_modtypesubst mty_tree)
+
 let merge_constraint initial_env loc sg lid constr =
   let destructive_substitution =
     match constr with
@@ -585,25 +599,15 @@ let merge_constraint initial_env loc sg lid constr =
       (With_modtype mty | With_modtypesubst mty)
       when Ident.name id = s ->
         let sig_env = Env.add_signature sg_for_env outer_sig_env in
-        let mty_type =
-          match mty with
-          | Check_only mty_type -> mty_type
-          | Build_TypedTree mty_tree -> mty_tree.mty_type
-        in
+        let mty_type = modtype_info_extract_modtype mty in
         let () = match mtd.mtd_type with
           | None -> ()
           | Some previous_mty ->
               Includemod.check_modtype_equiv ~loc sig_env
                 id previous_mty mty_type
         in
-        let typedtree_extra_opt = match mty with
-          | Check_only _ -> None
-          | Build_TypedTree mty_tree ->
-              if not destructive_substitution then
-                Some (Twith_modtype mty_tree)
-              else
-                Some (Twith_modtypesubst mty_tree)
-        in
+        let typedtree_extra_opt =
+          modtype_info_build_typedtree mty destructive_substitution in
         if not destructive_substitution then
           let mtd': modtype_declaration =
             {
@@ -822,33 +826,9 @@ let rec approx_modtype env smty =
       (* the module type body is approximated and resolved to a signature *)
       let approx_body = approx_modtype env sbody in
       let initial_sig = extract_sig env sbody.pmty_loc approx_body in
+      (* then, the constraints are approximated and merged *)
       Mty_signature (List.fold_left
-          (fun body sdecl ->
-             match sdecl with
-             (* type substitutions are ignored *)
-             | Pwith_type _
-             | Pwith_typesubst _ -> body
-             (* module type substitutions are approximated then merged *)
-             | Pwith_modtype (id, smty) ->
-                 let approx_smty = approx_modtype env smty in
-                 let _, res_body = merge_constraint env smty.pmty_loc body
-                     id (With_modtype (Check_only approx_smty)) in
-                 res_body
-             | Pwith_modtypesubst (id, smty) ->
-                 let approx_smty = approx_modtype env smty in
-                 let _, res_body = merge_constraint env smty.pmty_loc body
-                     id (With_modtypesubst (Check_only approx_smty)) in
-                 res_body
-               (* module substitutions are ignored, but checked for cyclicity *)
-             | Pwith_module (_, lid') ->
-                 (* Lookup the module to make sure that it is not recursive.
-                    (GPR#1626) *)
-                 ignore (Env.lookup_module_path ~use:false ~load:false
-                           ~loc:lid'.loc lid'.txt env) ; body
-             | Pwith_modsubst (_, lid') ->
-                 ignore (Env.lookup_module_path ~use:false ~load:false
-                           ~loc:lid'.loc lid'.txt env) ; body)
-          initial_sig constraints)
+                       (approx_constraint env) initial_sig constraints)
   | Pmty_typeof smod ->
       let (_, mty) = !type_module_type_of_fwd env smod in
       mty
@@ -970,7 +950,33 @@ and approx_modtype_info env sinfo =
    mtd_attributes = sinfo.pmtd_attributes;
    mtd_loc = sinfo.pmtd_loc;
    mtd_uid = Uid.internal_not_actually_unique;
-  }
+ }
+
+and approx_constraint env body constr =
+  match constr with
+  (* type substitutions are ignored *)
+  | Pwith_type _
+  | Pwith_typesubst _ -> body
+  (* module type substitutions are approximated then merged *)
+  | Pwith_modtype (id, smty) ->
+      let approx_smty = approx_modtype env smty in
+      let _, res_body = merge_constraint env smty.pmty_loc body
+          id (With_modtype (Check_only approx_smty)) in
+      res_body
+  | Pwith_modtypesubst (id, smty) ->
+      let approx_smty = approx_modtype env smty in
+      let _, res_body = merge_constraint env smty.pmty_loc body
+          id (With_modtypesubst (Check_only approx_smty)) in
+      res_body
+  (* module substitutions are ignored, but checked for cyclicity *)
+  | Pwith_module (_, lid') ->
+      (* Lookup the module to make sure that it is not recursive.
+         (GPR#1626) *)
+      ignore (Env.lookup_module_path ~use:false ~load:false
+                ~loc:lid'.loc lid'.txt env) ; body
+  | Pwith_modsubst (_, lid') ->
+      ignore (Env.lookup_module_path ~use:false ~load:false
+                ~loc:lid'.loc lid'.txt env) ; body
 
 let approx_modtype env smty =
   Warnings.without_warnings
