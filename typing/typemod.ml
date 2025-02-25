@@ -451,7 +451,7 @@ type with_info =
   | With_type_package of Typedtree.core_type
     (* Package with type constraints only use this last case.  Normal module
        with constraints never use it. *)
- (* used in merge_constraint to toggle the build of the typed tree when needed *)
+ (* used in merge_constraint to toggle the build of the typed tree *)
 and modtype_info =
   | Check_only      of Types.module_type
   | Build_TypedTree of Typedtree.module_type
@@ -843,7 +843,7 @@ let rec approx_modtype env smty =
                            ~loc:lid'.loc lid'.txt env) ; body
              | Pwith_modsubst (_, lid') ->
                  ignore (Env.lookup_module_path ~use:false ~load:false
-                           ~loc:lid'.loc lid'.txt env) ; body) 
+                           ~loc:lid'.loc lid'.txt env) ; body)
           initial_sig constraints)
   | Pmty_typeof smod ->
       let (_, mty) = !type_module_type_of_fwd env smod in
