@@ -375,10 +375,10 @@ Line 1, characters 59-62:
 1 | module rec X : (sig module type A end with module type A = X.A)
                                                                ^^^
 Error: Illegal recursive module reference
-|}] 
+|}]
 
 module rec X : (sig module type A = X.A end)
-  = struct module type A end 
+  = struct module type A end
 [%%expect {|
 Line 1, characters 36-39:
 1 | module rec X : (sig module type A = X.A end)
@@ -393,14 +393,13 @@ Line 1, characters 60-63:
 1 | module rec X : (sig module type A end with module type A := X.A)
                                                                 ^^^
 Error: Illegal recursive module reference
-|}] 
+|}]
 
 module rec X : (sig module type A := X.A end)
-  = struct module type A end 
+  = struct module type A end
 [%%expect {|
 Line 1, characters 37-40:
 1 | module rec X : (sig module type A := X.A end)
                                          ^^^
 Error: Illegal recursive module reference
-|}] 
-
+|}]
