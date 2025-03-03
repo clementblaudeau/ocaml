@@ -368,6 +368,7 @@ Error: The module type "t" is not a valid type for a packed module:
        for an anonymous module type. (see manual section 12.7.3)
 |}]
 
+(* Having cyclic constraints should throw an error *)
 module rec X : (sig module type A end with module type A = X.A)
 = struct module type A end
 [%%expect {|
@@ -377,15 +378,7 @@ Line 1, characters 59-62:
 Error: Illegal recursive module reference
 |}]
 
-module rec X : (sig module type A = X.A end)
-  = struct module type A end
-[%%expect {|
-Line 1, characters 36-39:
-1 | module rec X : (sig module type A = X.A end)
-                                        ^^^
-Error: Illegal recursive module reference
-|}]
-
+(* Having cyclic constraints should throw an error (destructive) *)
 module rec X : (sig module type A end with module type A := X.A)
 = struct module type A end
 [%%expect {|
@@ -395,11 +388,29 @@ Line 1, characters 60-63:
 Error: Illegal recursive module reference
 |}]
 
-module rec X : (sig module type A := X.A end)
-  = struct module type A end
+(* The approximated module types should have the merged constraints (non
+   destructive case) *)
+module rec X : (sig module type A module X' : A end)
+               with module type A = sig type t end =
+struct
+  module type A = sig type t end
+  module X' = struct type t = int end
+end
+and Y : sig type u = X.X'.t end = struct type u = X.X'.t end
 [%%expect {|
-Line 1, characters 37-40:
-1 | module rec X : (sig module type A := X.A end)
-                                         ^^^
-Error: Illegal recursive module reference
+module rec X : sig module type A = sig type t end module X' : A end
+and Y : sig type u = X.X'.t end
+|}]
+
+(* The approximated module types should have the merged constraints
+   (destructive case) *)
+module rec X : (sig module type A module X' : A end)
+               with module type A := sig type t end =
+struct
+  module X' = struct type t = int end
+end
+and Y : sig type u = X.X'.t end = struct type u = X.X'.t end
+[%%expect {|
+module rec X : sig module X' : sig type t end end
+and Y : sig type u = X.X'.t end
 |}]
