@@ -436,7 +436,8 @@ let params_are_constrained =
   in
   loop
 
-type with_info =
+type merge_constraint =
+  (* Normal merging cases that returns a typed tree *)
   | With_type of Parsetree.type_declaration
   | With_typesubst of Parsetree.type_declaration
   | With_module of {
@@ -446,36 +447,35 @@ type with_info =
         remove_aliases:bool
       }
   | With_modsubst of Longident.t loc * Path.t * Types.module_declaration
-  | With_modtype of modtype_info
-  | With_modtypesubst of modtype_info
+  | With_modtype of Typedtree.module_type
+  | With_modtypesubst of Typedtree.module_type
+
+  (* Package with type constraints only use this last case. *)
   | With_type_package of Typedtree.core_type
-    (* Package with type constraints only use this last case.  Normal module
-       with constraints never use it. *)
- (* used in merge_constraint to toggle the build of the typed tree *)
-and modtype_info =
-  | Check_only      of Types.module_type
-  | Build_TypedTree of Typedtree.module_type
 
-let modtype_info_extract_modtype mty =
-  match mty with
-  | Check_only mty_type -> mty_type
-  | Build_TypedTree mty_tree -> mty_tree.mty_type
+  (* Merging of module types during signature approximation *)
+  | Approx_with_modtype      of Types.module_type
+  | Approx_with_modtypesubst of Types.module_type
 
-let modtype_info_build_typedtree mty destructive =
-  match mty with
-  | Check_only _ -> None
-  | Build_TypedTree mty_tree ->
-      if not destructive then
-        Some (Twith_modtype mty_tree)
-      else
-        Some (Twith_modtypesubst mty_tree)
+type merge_result = Path.t * merge_info * Types.signature
+and merge_info =
+  (* Result of normal merging *)
+  | Built_TypedTree of {
+      lid: Longident.t Asttypes.loc ;
+      constr : Typedtree.with_constraint
+    }
+  (* Result of merging a package_type or merging approximated module types
+     (without typedtree) *)
+  | No_TypedTree
 
-let merge_constraint initial_env loc sg lid constr =
+let merge_constraint_aux initial_env loc sg lid constr : merge_result =
   let destructive_substitution =
     match constr with
     | With_type _ | With_module _ | With_modtype _
+    | Approx_with_modtype _
     | With_type_package _ -> false
-    | With_typesubst _ | With_modsubst _ | With_modtypesubst _  -> true
+    | With_typesubst _ | With_modsubst _ | With_modtypesubst _
+    | Approx_with_modtypesubst _ -> true
   in
   let real_ids = ref [] in
   let split_row_id s ghosts =
@@ -558,9 +558,9 @@ let merge_constraint initial_env loc sg lid constr =
         in
         return ~ghosts
           ~replace_by:(Some (Sig_type(id, newdecl, rs, priv)))
-          (Pident id, lid, Some (Twith_type tdecl))
+          (Pident id, Built_TypedTree {lid=lid; constr=Twith_type tdecl} )
     | Sig_type(id, sig_decl, rs, priv) , [s],
-       (With_type sdecl | With_typesubst sdecl as constr)
+       (With_type sdecl | With_typesubst sdecl)
       when Ident.name id = s ->
         let sig_env = Env.add_signature sg_for_env outer_sig_env in
         let tdecl =
@@ -571,17 +571,19 @@ let merge_constraint initial_env loc sg lid constr =
         let ghosts = List.rev_append before_ghosts after_ghosts in
         check_type_decl outer_sig_env sg_for_env loc
           id row_id newdecl sig_decl;
-        begin match constr with
-          With_type _ ->
-            return ~ghosts
-              ~replace_by:(Some(Sig_type(id, newdecl, rs, priv)))
-              (Pident id, lid, Some (Twith_type tdecl))
-        | (* With_typesubst *) _ ->
-            real_ids := [Pident id];
-            return ~ghosts ~replace_by:None
-              (Pident id, lid, Some (Twith_typesubst tdecl))
+        if not destructive_substitution then
+          return ~ghosts
+            ~replace_by:(Some(Sig_type(id, newdecl, rs, priv)))
+            (Pident id, Built_TypedTree {
+                  lid=lid; constr=(Twith_type tdecl)})
+        else begin
+          real_ids := [Pident id];
+          return ~ghosts ~replace_by:None
+            (Pident id, Built_TypedTree {
+                  lid=lid; constr=(Twith_typesubst tdecl)})
         end
-    | Sig_type(id, sig_decl, rs, priv), [s], With_type_package cty
+    | Sig_type(id, sig_decl, rs, priv), [s],
+      With_type_package cty
       when Ident.name id = s ->
         begin match sig_decl.type_manifest with
         | None -> ()
@@ -593,38 +595,64 @@ let merge_constraint initial_env loc sg lid constr =
         in
         check_type_decl outer_sig_env sg_for_env loc id None tdecl sig_decl;
         let tdecl = { tdecl with type_manifest = None } in
-        return ~ghosts ~replace_by:(Some(Sig_type(id, tdecl, rs, priv)))
-          (Pident id, lid, None)
+        return ~ghosts ~replace_by: (Some(Sig_type(id, tdecl, rs, priv)))
+          (Pident id, No_TypedTree)
     | Sig_modtype(id, mtd, priv), [s],
       (With_modtype mty | With_modtypesubst mty)
       when Ident.name id = s ->
         let sig_env = Env.add_signature sg_for_env outer_sig_env in
-        let mty_type = modtype_info_extract_modtype mty in
         let () = match mtd.mtd_type with
           | None -> ()
           | Some previous_mty ->
               Includemod.check_modtype_equiv ~loc sig_env
-                id previous_mty mty_type
+                id previous_mty mty.mty_type
         in
-        let typedtree_extra_opt =
-          modtype_info_build_typedtree mty destructive_substitution in
         if not destructive_substitution then
           let mtd': modtype_declaration =
             {
               mtd_uid = Uid.mk ~current_unit:(Env.get_current_unit ());
-              mtd_type = Some mty_type;
+              mtd_type = Some mty.mty_type;
               mtd_attributes = [];
               mtd_loc = loc;
             }
           in
           return
             ~replace_by:(Some(Sig_modtype(id, mtd', priv)))
-            (Pident id, lid, typedtree_extra_opt)
+            (Pident id, Built_TypedTree {lid; constr=Twith_modtype mty})
         else begin
           let path = Pident id in
           real_ids := [path];
           return ~replace_by:None
-            (Pident id, lid, typedtree_extra_opt)
+            (Pident id, Built_TypedTree {
+                lid=lid; constr=Twith_modtypesubst mty})
+        end
+    | Sig_modtype(id, mtd, priv), [s],
+      (Approx_with_modtype mty | Approx_with_modtypesubst mty)
+      when Ident.name id = s ->
+        let sig_env = Env.add_signature sg_for_env outer_sig_env in
+        let () = match mtd.mtd_type with
+          | None -> ()
+          | Some previous_mty ->
+              Includemod.check_modtype_equiv ~loc sig_env
+                id previous_mty mty
+        in
+        if not destructive_substitution then
+          let mtd': modtype_declaration =
+            {
+              mtd_uid = Uid.mk ~current_unit:(Env.get_current_unit ());
+              mtd_type = Some mty;
+              mtd_attributes = [];
+              mtd_loc = loc;
+            }
+          in
+          return
+            ~replace_by:(Some(Sig_modtype(id, mtd', priv)))
+            (Pident id, No_TypedTree )
+        else begin
+          let path = Pident id in
+          real_ids := [path];
+          return ~replace_by:None
+            (Pident id, No_TypedTree)
         end
     | Sig_module(id, pres, md, rs, priv), [s],
       With_module {lid=lid'; md=md'; path; remove_aliases}
@@ -638,7 +666,8 @@ let merge_constraint initial_env loc sg lid constr =
                  newmd.md_type md.md_type);
         return
           ~replace_by:(Some(Sig_module(id, pres, newmd, rs, priv)))
-          (Pident id, lid, Some (Twith_module (path, lid')))
+          (Pident id, Built_TypedTree {
+              lid=lid; constr=(Twith_module (path, lid'))})
     | Sig_module(id, _, md, _rs, _), [s], With_modsubst (lid',path,md')
       when Ident.name id = s ->
         let sig_env = Env.add_signature sg_for_env outer_sig_env in
@@ -648,41 +677,50 @@ let merge_constraint initial_env loc sg lid constr =
              ~aliasable sig_env md' path md);
         real_ids := [Pident id];
         return ~replace_by:None
-          (Pident id, lid, Some (Twith_modsubst (path, lid')))
-    | Sig_module(id, _, md, rs, priv) as item, s :: namelist, constr
+          (Pident id, Built_TypedTree {
+               lid=lid; constr=(Twith_modsubst (path, lid'))})
+
+    (* When the constraint affects a component of a submodule *)
+    | Sig_module(id, _, md, rs, priv) as current_item, s :: namelist, _
       when Ident.name id = s ->
         let sig_env = Env.add_signature sg_for_env outer_sig_env in
         let sg = extract_sig sig_env loc md.md_type in
-        let ((path, _, tcstr), newsg) = merge_signature sig_env sg namelist in
-        let path = path_concat id path in
-        real_ids := path :: !real_ids;
-        let item =
-          match md.md_type, constr with
-            Mty_alias _, (With_module _ | With_type _) ->
-              (* A module alias cannot be refined, so keep it
-                 and just check that the constraint is correct *)
-              item
-          | _ ->
-              let newmd = {md with md_type = Mty_signature newsg} in
-              Sig_module(id, Mp_present, newmd, rs, priv)
-        in
-        return ~replace_by:(Some item) (path, lid, tcstr)
+        let subpath, merge_info, newsg = merge_signature sig_env sg namelist in
+        let path = path_concat id subpath in
+        real_ids := path :: !real_ids ;
+        begin match md.md_type, merge_info with
+        | Mty_alias _, Built_TypedTree
+            { lid; constr = (Twith_module _ | Twith_type _ ) as tcstr } ->
+            return ~replace_by:(Some current_item)
+              (path, Built_TypedTree { lid; constr=tcstr} )
+        | _, Built_TypedTree { lid; constr } ->
+            (* Why we do not reuse the presence of the current_item ? *)
+            let new_md = {md with md_type = Mty_signature newsg} in
+            let new_item = Sig_module(id, Mp_present, new_md, rs, priv) in
+            return ~replace_by:(Some new_item)
+              (path, Built_TypedTree {lid; constr})
+        | _, No_TypedTree ->
+            let new_md = {md with md_type = Mty_signature newsg} in
+            let new_item = Sig_module(id, Mp_present, new_md, rs, priv) in
+            return ~replace_by:(Some new_item) (path, No_TypedTree)
+        end
     | _ -> None
-  and merge_signature env sg namelist =
+
+  and merge_signature env sg namelist : merge_result =
     match
       Signature_group.replace_in_place (patch_item constr namelist env sg) sg
     with
-    | Some (x,sg) -> x, sg
+    | Some ((path, res), sg) -> path, res, sg
     | None -> raise(Error(loc, env, With_no_component lid.txt))
   in
   try
     let names = Longident.flatten lid.txt in
-    let (tcstr, sg) = merge_signature initial_env sg names in
+    let (path, merge_info, sg) = merge_signature initial_env sg names in
     if destructive_substitution then
       check_usage_after_substitution ~loc ~lid initial_env !real_ids sg;
     let sg =
-    match tcstr with
-    | (_, _, Some (Twith_typesubst tdecl)) ->
+    match merge_info, constr with
+      | Built_TypedTree {constr=Twith_typesubst tdecl},_ ->
        let how_to_extend_subst =
          let sdecl =
            match constr with
@@ -707,7 +745,7 @@ let merge_constraint initial_env loc sg lid constr =
        let sub = Subst.change_locs Subst.identity loc in
        let sub = List.fold_left how_to_extend_subst sub !real_ids in
        unsafe_signature_subst sub sg
-    | (_, _, Some (Twith_modsubst (real_path, _))) ->
+    | Built_TypedTree {constr=Twith_modsubst (real_path, _)},_ ->
        let sub = Subst.change_locs Subst.identity loc in
        let sub =
          List.fold_left
@@ -716,8 +754,9 @@ let merge_constraint initial_env loc sg lid constr =
            !real_ids
        in
        unsafe_signature_subst sub sg
-    | (_, _, Some (Twith_modtypesubst tmty)) ->
-        let add s p = Subst.Unsafe.add_modtype_path p tmty.mty_type s in
+    | Built_TypedTree {constr=Twith_modtypesubst {mty_type=mty}}, _
+    | _, Approx_with_modtypesubst mty ->
+        let add s p = Subst.Unsafe.add_modtype_path p mty s in
         let sub = Subst.change_locs Subst.identity loc in
         let sub = List.fold_left add sub !real_ids in
         unsafe_signature_subst sub sg
@@ -726,13 +765,22 @@ let merge_constraint initial_env loc sg lid constr =
     in
     check_well_formed_module initial_env loc "this instantiated signature"
       (Mty_signature sg);
-    (tcstr, sg)
+    (path, merge_info, sg)
   with Includemod.Error explanation ->
     raise(Error(loc, initial_env, With_mismatch(lid.txt, explanation)))
 
-let merge_package_constraint initial_env loc sg lid cty =
-  let _, s = merge_constraint initial_env loc sg lid (With_type_package cty) in
-  s
+(* Normal merge function - build the typed tree *)
+let merge_constraint env loc sg lid cty =
+  match merge_constraint_aux env loc sg lid cty with
+  | path, Built_TypedTree { lid; constr }, newsg ->
+      (path, lid, constr, newsg)
+  | _, No_TypedTree, _ -> fatal_error "Incorrect merge result"
+
+(* Specialized merge function for package types *)
+let merge_package_constraint env loc sg lid cty =
+  match merge_constraint_aux env loc sg lid (With_type_package cty) with
+  | _, No_TypedTree, newsg -> newsg
+  | _, Built_TypedTree _, _ -> fatal_error "Incorrect merge result"
 
 let check_package_with_type_constraints loc env mty constraints =
   let sg = extract_sig env loc mty in
@@ -748,6 +796,20 @@ let check_package_with_type_constraints loc env mty constraints =
 let () =
   Typetexp.check_package_with_type_constraints :=
     check_package_with_type_constraints
+
+(* Specialized merge function for merging during signature approximation *)
+let merge_constraint_approx env loc sg lid mty ~destructive =
+  let constr =
+    if not destructive then
+      Approx_with_modtype mty
+    else
+      Approx_with_modtypesubst mty
+  in
+  match merge_constraint_aux env loc sg lid constr with
+  | _, No_TypedTree, newsg -> newsg
+  | _, Built_TypedTree _, _ -> fatal_error "Incorrect merge result"
+
+
 
 (* Add recursion flags on declarations arising from a mutually recursive
    block. *)
@@ -960,14 +1022,12 @@ and approx_constraint env body constr =
   (* module type substitutions are approximated then merged *)
   | Pwith_modtype (id, smty) ->
       let approx_smty = approx_modtype env smty in
-      let _, res_body = merge_constraint env smty.pmty_loc body
-          id (With_modtype (Check_only approx_smty)) in
-      res_body
+      merge_constraint_approx ~destructive:false
+          env smty.pmty_loc body id approx_smty
   | Pwith_modtypesubst (id, smty) ->
       let approx_smty = approx_modtype env smty in
-      let _, res_body = merge_constraint env smty.pmty_loc body
-          id (With_modtypesubst (Check_only approx_smty)) in
-      res_body
+      merge_constraint_approx ~destructive:true
+        env smty.pmty_loc body id approx_smty
   (* module substitutions are ignored, but checked for cyclicity *)
   | Pwith_module (_, lid') ->
       (* Lookup the module to make sure that it is not recursive.
@@ -1380,16 +1440,13 @@ and transl_with ~loc env remove_aliases (rev_tcstrs,sg) constr =
         l , With_modsubst (l',path,md')
     | Pwith_modtype (l,smty) ->
         let mty = transl_modtype env smty in
-        l, With_modtype (Build_TypedTree mty)
+        l, With_modtype mty
     | Pwith_modtypesubst (l,smty) ->
         let mty = transl_modtype env smty in
-        l, With_modtypesubst (Build_TypedTree mty)
+        l, With_modtypesubst mty
   in
-  let ((path, lid, tcstr), sg) = merge_constraint env loc sg lid with_info in
-  (* Only package with constraints result in None here. *)
-  let tcstr = Option.get tcstr in
-  ((path, lid, tcstr) :: rev_tcstrs, sg)
-
+  let (path, lid, constr, sg) = merge_constraint env loc sg lid with_info in
+  ((path, lid, constr) :: rev_tcstrs, sg)
 
 
 and transl_signature env sg =
