@@ -680,7 +680,6 @@ let merge_constraint_aux initial_env loc sg lid constr : merge_result =
             return ~replace_by:(Some current_item)
               (path, Built_TypedTree { lid; constr=tcstr} )
         | _, Built_TypedTree { lid; constr } ->
-            (* Why we do not reuse the presence of the current_item ? *)
             let new_md = {md with md_type = Mty_signature newsg} in
             let new_item = Sig_module(id, Mp_present, new_md, rs, priv) in
             return ~replace_by:(Some new_item)
@@ -759,13 +758,13 @@ let merge_constraint env loc sg lid cty =
   match merge_constraint_aux env loc sg lid cty with
   | path, Built_TypedTree { lid; constr }, newsg ->
       (path, lid, constr, newsg)
-  | _, No_TypedTree, _ -> fatal_error "Incorrect merge result"
+  | _, No_TypedTree, _ -> assert false
 
 (* Specialized merge function for package types *)
 let merge_package_constraint env loc sg lid cty =
   match merge_constraint_aux env loc sg lid (With_type_package cty) with
   | _, No_TypedTree, newsg -> newsg
-  | _, Built_TypedTree _, _ -> fatal_error "Incorrect merge result"
+  | _, Built_TypedTree _, _ -> assert false
 
 let check_package_with_type_constraints loc env mty constraints =
   let sg = extract_sig env loc mty in
@@ -792,7 +791,7 @@ let merge_constraint_approx env loc sg lid mty ~destructive =
   in
   match merge_constraint_aux env loc sg lid constr with
   | _, No_TypedTree, newsg -> newsg
-  | _, Built_TypedTree _, _ -> fatal_error "Incorrect merge result"
+  | _, Built_TypedTree _, _ -> assert false
 
 (* Add recursion flags on declarations arising from a mutually recursive
    block. *)
