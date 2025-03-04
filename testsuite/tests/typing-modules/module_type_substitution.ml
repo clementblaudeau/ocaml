@@ -375,7 +375,9 @@ module rec X : (sig module type A end with module type A = X.A)
 Line 1, characters 59-62:
 1 | module rec X : (sig module type A end with module type A = X.A)
                                                                ^^^
-Error: Illegal recursive module reference
+Error: This module type is recursive. This use of the recursive module "X"
+       within its own definition makes the module type of "X" depend on itself.
+       Such recursive definitions of module types are not allowed.
 |}]
 
 (* Having cyclic constraints should throw an error (destructive) *)
@@ -385,7 +387,9 @@ module rec X : (sig module type A end with module type A := X.A)
 Line 1, characters 60-63:
 1 | module rec X : (sig module type A end with module type A := X.A)
                                                                 ^^^
-Error: Illegal recursive module reference
+Error: This module type is recursive. This use of the recursive module "X"
+       within its own definition makes the module type of "X" depend on itself.
+       Such recursive definitions of module types are not allowed.
 |}]
 
 (* The approximated module types should have the merged constraints (non

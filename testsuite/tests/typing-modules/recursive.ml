@@ -20,7 +20,9 @@ module rec X : (sig module type A = X.A end)
 Line 1, characters 36-39:
 1 | module rec X : (sig module type A = X.A end)
                                         ^^^
-Error: Illegal recursive module reference
+Error: This module type is recursive. This use of the recursive module "X"
+       within its own definition makes the module type of "X" depend on itself.
+       Such recursive definitions of module types are not allowed.
 |}]
 
 (* Cyclic module type definitions should throw an error *)
@@ -30,5 +32,7 @@ module rec X : (sig module type A := X.A end)
 Line 1, characters 37-40:
 1 | module rec X : (sig module type A := X.A end)
                                          ^^^
-Error: Illegal recursive module reference
+Error: This module type is recursive. This use of the recursive module "X"
+       within its own definition makes the module type of "X" depend on itself.
+       Such recursive definitions of module types are not allowed.
 |}]
