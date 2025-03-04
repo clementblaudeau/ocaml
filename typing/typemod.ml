@@ -503,6 +503,31 @@ let merge_constraint_aux initial_env loc sg lid constr : merge_result =
     let return ?(ghosts=ghosts) ~replace_by info =
       Some (info, {Signature_group.ghosts; replace_by})
     in
+    let patch_modtype_item ~destructive
+        id (mtd: Types.modtype_declaration) priv mty  =
+      let sig_env = Env.add_signature sg_for_env outer_sig_env in
+      (* Check for equivalence if the previous module type was not empty *)
+      let () = match mtd.mtd_type with
+        | None -> ()
+        | Some previous_mty ->
+            Includemod.check_modtype_equiv ~loc sig_env
+              id previous_mty mty
+      in
+      if not destructive then
+        let mtd': modtype_declaration =
+          {
+            mtd_uid = Uid.mk ~current_unit:(Env.get_current_unit ());
+            mtd_type = Some mty;
+            mtd_attributes = [];
+            mtd_loc = loc;
+          }
+        in Some(Sig_modtype(id, mtd', priv))
+      else begin
+        let path = Pident id in
+        real_ids := [path];
+        None
+      end
+    in
     match item, namelist, constr with
     | Sig_type(id, decl, rs, priv), [s],
        With_type ({ptype_kind = Ptype_abstract} as sdecl)
@@ -582,8 +607,7 @@ let merge_constraint_aux initial_env loc sg lid constr : merge_result =
             (Pident id, Built_TypedTree {
                   lid=lid; constr=(Twith_typesubst tdecl)})
         end
-    | Sig_type(id, sig_decl, rs, priv), [s],
-      With_type_package cty
+    | Sig_type(id, sig_decl, rs, priv), [s], With_type_package cty
       when Ident.name id = s ->
         begin match sig_decl.type_manifest with
         | None -> ()
@@ -595,65 +619,27 @@ let merge_constraint_aux initial_env loc sg lid constr : merge_result =
         in
         check_type_decl outer_sig_env sg_for_env loc id None tdecl sig_decl;
         let tdecl = { tdecl with type_manifest = None } in
-        return ~ghosts ~replace_by: (Some(Sig_type(id, tdecl, rs, priv)))
+        return ~ghosts ~replace_by:(Some(Sig_type(id, tdecl, rs, priv)))
           (Pident id, No_TypedTree)
     | Sig_modtype(id, mtd, priv), [s],
       (With_modtype mty | With_modtypesubst mty)
       when Ident.name id = s ->
-        let sig_env = Env.add_signature sg_for_env outer_sig_env in
-        let () = match mtd.mtd_type with
-          | None -> ()
-          | Some previous_mty ->
-              Includemod.check_modtype_equiv ~loc sig_env
-                id previous_mty mty.mty_type
+        let new_item = patch_modtype_item id mtd priv mty.mty_type
+            ~destructive:destructive_substitution in
+        let constr_tt =
+          if not destructive_substitution then
+            (Twith_modtype mty)
+          else
+            (Twith_modtypesubst mty)
         in
-        if not destructive_substitution then
-          let mtd': modtype_declaration =
-            {
-              mtd_uid = Uid.mk ~current_unit:(Env.get_current_unit ());
-              mtd_type = Some mty.mty_type;
-              mtd_attributes = [];
-              mtd_loc = loc;
-            }
-          in
-          return
-            ~replace_by:(Some(Sig_modtype(id, mtd', priv)))
-            (Pident id, Built_TypedTree {lid; constr=Twith_modtype mty})
-        else begin
-          let path = Pident id in
-          real_ids := [path];
-          return ~replace_by:None
-            (Pident id, Built_TypedTree {
-                lid=lid; constr=Twith_modtypesubst mty})
-        end
+        return ~replace_by:new_item
+          (Pident id, Built_TypedTree {lid; constr=constr_tt})
     | Sig_modtype(id, mtd, priv), [s],
       (Approx_with_modtype mty | Approx_with_modtypesubst mty)
       when Ident.name id = s ->
-        let sig_env = Env.add_signature sg_for_env outer_sig_env in
-        let () = match mtd.mtd_type with
-          | None -> ()
-          | Some previous_mty ->
-              Includemod.check_modtype_equiv ~loc sig_env
-                id previous_mty mty
-        in
-        if not destructive_substitution then
-          let mtd': modtype_declaration =
-            {
-              mtd_uid = Uid.mk ~current_unit:(Env.get_current_unit ());
-              mtd_type = Some mty;
-              mtd_attributes = [];
-              mtd_loc = loc;
-            }
-          in
-          return
-            ~replace_by:(Some(Sig_modtype(id, mtd', priv)))
-            (Pident id, No_TypedTree )
-        else begin
-          let path = Pident id in
-          real_ids := [path];
-          return ~replace_by:None
-            (Pident id, No_TypedTree)
-        end
+        let new_item = patch_modtype_item id mtd priv mty
+            ~destructive:destructive_substitution in
+        return ~replace_by:new_item (Pident id, No_TypedTree)
     | Sig_module(id, pres, md, rs, priv), [s],
       With_module {lid=lid'; md=md'; path; remove_aliases}
       when Ident.name id = s ->
@@ -705,8 +691,7 @@ let merge_constraint_aux initial_env loc sg lid constr : merge_result =
             return ~replace_by:(Some new_item) (path, No_TypedTree)
         end
     | _ -> None
-
-  and merge_signature env sg namelist : merge_result =
+  and merge_signature env sg namelist =
     match
       Signature_group.replace_in_place (patch_item constr namelist env sg) sg
     with
@@ -808,8 +793,6 @@ let merge_constraint_approx env loc sg lid mty ~destructive =
   match merge_constraint_aux env loc sg lid constr with
   | _, No_TypedTree, newsg -> newsg
   | _, Built_TypedTree _, _ -> fatal_error "Incorrect merge result"
-
-
 
 (* Add recursion flags on declarations arising from a mutually recursive
    block. *)
