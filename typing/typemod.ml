@@ -862,10 +862,27 @@ let rec approx_modtype env smty =
       let res = approx_modtype newenv sres in
       Mty_functor(param, res)
   | Pmty_with(sbody, constraints) ->
-      (* the module type body is approximated and resolved to a signature *)
+      (* the module type body is approximated and resolved to a signature.*)
       let approx_body = approx_modtype env sbody in
       let initial_sig = extract_sig env sbody.pmty_loc approx_body in
-      (* then, the constraints are approximated and merged *)
+      (* then, the constraints are approximated and merged, instead of merged
+         and approximated. For (1) type constraints, (2) module constraints and
+         (3) module type constraints replacing an abstract module type, it
+         should be equivalent.
+
+         However, for module type constraints replacing a concrete module type,
+         approximating the constraint and the body before merging can interact
+         with the equivalence check that is done between the constraint and the
+         original definition:
+
+         1. It can erroneously succeed because the approximation made the module
+         types equivalent. It is believed to be harmless, because the
+         ill-formedness is caught when re-typechecking the module types (with
+         the approximation in the environment).
+
+         2. It can erroneously fail because the constraint has been approximated
+         but the body has not (named module types escape approximation).
+      *)
       Mty_signature (List.fold_left
                        (approx_constraint env) initial_sig constraints)
   | Pmty_typeof smod ->
