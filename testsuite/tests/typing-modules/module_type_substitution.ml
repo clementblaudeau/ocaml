@@ -591,19 +591,24 @@ module type Test = sig
   and Y : sig type u = X.X'.t end
 end
 [%%expect {|
-Error: In this with constraint, the new definition of A
+Lines 2-5, characters 18-49:
+2 | ..................sig
+3 |       module type A = sig type t = bool end
+4 |       module X' : A
+5 |     end with module type A = sig type t = int end.
+Error: In this "with" constraint, the new definition of "A"
        does not match its original definition in the constrained signature:
-       At position module type A = <here>
+       At position "module type A = <here>"
        Module types do not match:
          sig type t = bool end
        is not equal to
          sig type t = int end
-       At position module type A = <here>
+       At position "module type A = <here>"
        Type declarations do not match:
          type t = bool
        is not included in
          type t = int
-       The type bool is not equal to the type int
+       The type "bool" is not equal to the type "int"
 |}]
 
 (* Invalid substitutions might be accepted during the approximation phase, but
@@ -617,19 +622,24 @@ module type Test = sig
   and Y : sig type u = X.X'.t end
 end
 [%%expect {|
-Error: In this with constraint, the new definition of A
+Lines 2-5, characters 18-49:
+2 | ..................sig
+3 |       module type A = sig type t = bool end
+4 |       module X' : A
+5 |     end with module type A = sig type t = int end.
+Error: In this "with" constraint, the new definition of "A"
        does not match its original definition in the constrained signature:
-       At position module type A = <here>
+       At position "module type A = <here>"
        Module types do not match:
          sig type t = bool end
        is not equal to
          sig type t = int end
-       At position module type A = <here>
+       At position "module type A = <here>"
        Type declarations do not match:
          type t = bool
        is not included in
          type t = int
-       The type bool is not equal to the type int
+       The type "bool" is not equal to the type "int"
 |}]
 
 
@@ -640,14 +650,17 @@ module type Test = sig
   module rec X : S with module type A = sig type t = int end
 end
 [%%expect {|
-Error: In this with constraint, the new definition of A
+Line 3, characters 40-60:
+3 |   module rec X : S with module type A = sig type t = int end
+                                            ^^^^^^^^^^^^^^^^^^^^
+Error: In this "with" constraint, the new definition of "A"
        does not match its original definition in the constrained signature:
-       At position module type A = <here>
+       At position "module type A = <here>"
        Module types do not match:
          sig type t end
        is not equal to
          sig type t = int end
-       At position module type A = <here>
+       At position "module type A = <here>"
        Type declarations do not match: type t is not included in type t = int
-       The type t is not equal to the type int
+       The type "t" is not equal to the type "int"
 |}]
