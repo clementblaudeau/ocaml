@@ -650,17 +650,9 @@ module type Test = sig
   module rec X : S with module type A = sig type t = int end
 end
 [%%expect {|
-Line 3, characters 40-60:
-3 |   module rec X : S with module type A = sig type t = int end
-                                            ^^^^^^^^^^^^^^^^^^^^
-Error: In this "with" constraint, the new definition of "A"
-       does not match its original definition in the constrained signature:
-       At position "module type A = <here>"
-       Module types do not match:
-         sig type t end
-       is not equal to
-         sig type t = int end
-       At position "module type A = <here>"
-       Type declarations do not match: type t is not included in type t = int
-       The type "t" is not equal to the type "int"
+module type Test =
+  sig
+    module type S = sig module type A = sig type t = int end end
+    module rec X : sig module type A = sig type t = int end end
+  end
 |}]

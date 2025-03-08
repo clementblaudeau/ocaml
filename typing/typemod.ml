@@ -477,6 +477,11 @@ let merge_constraint_aux initial_env loc sg lid constr : merge_result =
     | With_typesubst _ | With_modsubst _ | With_modtypesubst _
     | Approx_with_modtypesubst _ -> true
   in
+  let approx_substitution =
+    match constr with
+    | Approx_with_modtype _ | Approx_with_modtypesubst _ -> true
+    | _ -> false
+  in
   let real_ids = ref [] in
   let split_row_id s ghosts =
     let srow = s ^ "#row" in
@@ -503,17 +508,18 @@ let merge_constraint_aux initial_env loc sg lid constr : merge_result =
     let return ?(ghosts=ghosts) ~replace_by info =
       Some (info, {Signature_group.ghosts; replace_by})
     in
-    let patch_modtype_item ~destructive
+    let patch_modtype_item
         id (mtd: Types.modtype_declaration) priv mty  =
       let sig_env = Env.add_signature sg_for_env outer_sig_env in
-      (* Check for equivalence if the previous module type was not empty *)
-      let () = match mtd.mtd_type with
-        | None -> ()
-        | Some previous_mty ->
+      (* Check for equivalence if the previous module type was not empty. During
+         approximation, the equivalence check is ignored. *)
+      let () = match approx_substitution, mtd.mtd_type with
+        | false, Some previous_mty ->
             Includemod.check_modtype_equiv ~loc sig_env
               id previous_mty mty
+        | _ -> ()
       in
-      if not destructive then
+      if not destructive_substitution then
         let mtd': modtype_declaration =
           {
             mtd_uid = Uid.mk ~current_unit:(Env.get_current_unit ());
@@ -624,8 +630,7 @@ let merge_constraint_aux initial_env loc sg lid constr : merge_result =
     | Sig_modtype(id, mtd, priv), [s],
       (With_modtype mty | With_modtypesubst mty)
       when Ident.name id = s ->
-        let new_item = patch_modtype_item id mtd priv mty.mty_type
-            ~destructive:destructive_substitution in
+        let new_item = patch_modtype_item id mtd priv mty.mty_type in
         let constr_tt =
           if not destructive_substitution then
             (Twith_modtype mty)
@@ -637,8 +642,7 @@ let merge_constraint_aux initial_env loc sg lid constr : merge_result =
     | Sig_modtype(id, mtd, priv), [s],
       (Approx_with_modtype mty | Approx_with_modtypesubst mty)
       when Ident.name id = s ->
-        let new_item = patch_modtype_item id mtd priv mty
-            ~destructive:destructive_substitution in
+        let new_item = patch_modtype_item id mtd priv mty in
         return ~replace_by:new_item (Pident id, No_TypedTree)
     | Sig_module(id, pres, md, rs, priv), [s],
       With_module {lid=lid'; md=md'; path; remove_aliases}
@@ -1019,13 +1023,17 @@ and approx_constraint env body constr =
   | Pwith_type _
   | Pwith_typesubst _ -> body
   (* module type substitutions are approximated then merged *)
-  | Pwith_modtype (id, smty) ->
-      let approx_smty = approx_modtype env smty in
-      merge_constraint_approx ~destructive:false
-          env smty.pmty_loc body id approx_smty
+  | Pwith_modtype (id, smty)
   | Pwith_modtypesubst (id, smty) ->
+      let destructive =
+        (match constr with | Pwith_modtypesubst _ -> true | _ -> false) in
       let approx_smty = approx_modtype env smty in
-      merge_constraint_approx ~destructive:true
+      (* The equivalence check for merging non abstract module types is ignored
+         during merging. Indeed, approximation only tries to build a skeleton of
+         non-recursive module types that can be used as an under-approximation
+         of the name-spaces for the typechecking phase, where invalid
+         constraints are going to be caught. *)
+      merge_constraint_approx ~destructive
         env smty.pmty_loc body id approx_smty
   (* module substitutions are ignored, but checked for cyclicity *)
   | Pwith_module (_, lid') ->
