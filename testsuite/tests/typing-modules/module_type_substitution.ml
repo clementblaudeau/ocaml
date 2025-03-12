@@ -643,16 +643,34 @@ Error: In this "with" constraint, the new definition of "A"
 |}]
 
 
-(* Defining module types before the recursive module prevents them from being
-   approximated and can (erroneously) make the constraint ill-formed *)
+(* Equivalence checks of module type constraints are ignored during
+   approximation. Therefore, the approximation accepts the ill-formed constraint
+   of replacing A by B. During the typechecking phase, the functor call
+   F(X2.X).u is accepted, as X2.X has the signature B. The typechecking fails at
+   the constraint verification. *)
 module type Test = sig
-  module type S = sig module type A = sig type t = int end end
-  module rec X : S with module type A = sig type t = int end
+  module F (_: sig type t = bool end) : sig type u end
+  module type S = sig
+    module type A = sig type t = int end
+    module X : A
+  end
+  module type B = sig type t = bool end
+
+  module rec X1 : sig type t = F(X2.X).u end
+  and X2 : S with module type A = B
 end
 [%%expect {|
-module type Test =
-  sig
-    module type S = sig module type A = sig type t = int end end
-    module rec X : sig module type A = sig type t = int end end
-  end
+Line 10, characters 11-35:
+10 |   and X2 : S with module type A = B
+                ^^^^^^^^^^^^^^^^^^^^^^^^
+Error: In this "with" constraint, the new definition of "A"
+       does not match its original definition in the constrained signature:
+       At position "module type A = <here>"
+       Module types do not match: sig type t = int end is not equal to B
+       At position "module type A = <here>"
+       Type declarations do not match:
+         type t = int
+       is not included in
+         type t = bool
+       The type "int" is not equal to the type "bool"
 |}]

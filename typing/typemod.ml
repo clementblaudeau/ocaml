@@ -886,15 +886,13 @@ let rec approx_modtype env smty =
          However, for module type constraints replacing a concrete module type,
          approximating the constraint and the body before merging can interact
          with the equivalence check that is done between the constraint and the
-         original definition:
-
-         1. It can erroneously succeed because the approximation made the module
-         types equivalent. It is believed to be harmless, because the
-         ill-formedness is caught when re-typechecking the module types (with
-         the approximation in the environment).
-
-         2. It can erroneously fail because the constraint has been approximated
-         but the body has not (named module types escape approximation).
+         original definition. As approximation only tries to build a skeleton of
+         non-recursive module types that can be used as an under-approximation
+         of the name-spaces for the typechecking phase, the equivalence check is
+         disabled, allowing for ill-formed constraints to be merged. It is
+         believed to be harmless, because the ill-formedness is caught when
+         re-typechecking the module types (with the approximation in the
+         environment).
       *)
       Mty_signature (List.fold_left
                        (approx_constraint env) initial_sig constraints)
