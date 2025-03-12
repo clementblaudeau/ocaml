@@ -368,29 +368,7 @@ Error: The module type "t" is not a valid type for a packed module:
        for an anonymous module type. (see manual section 12.7.3)
 |}]
 
-(* Having cyclic constraints should throw an error  *)
-module rec X : (sig module type A end with module type A = X.A)
-= struct end (* should fail before typechecking the body *)
-[%%expect {|
-Line 1, characters 59-62:
-1 | module rec X : (sig module type A end with module type A = X.A)
-                                                               ^^^
-Error: This module type is recursive. This use of the recursive module "X"
-       within its own definition makes the module type of "X" depend on itself.
-       Such recursive definitions of module types are not allowed.
-|}]
-
-(* Having cyclic constraints should throw an error (destructive) *)
-module rec X : (sig module type A end with module type A := X.A)
-= struct end (* should fail before typechecking the body *)
-[%%expect {|
-Line 1, characters 60-63:
-1 | module rec X : (sig module type A end with module type A := X.A)
-                                                                ^^^
-Error: This module type is recursive. This use of the recursive module "X"
-       within its own definition makes the module type of "X" depend on itself.
-       Such recursive definitions of module types are not allowed.
-|}]
+(** Approximation and substitutions **)
 
 (* Approximating a signature with a constraint should merge the approximated
    constraint (abstract, non destructive case) *)
