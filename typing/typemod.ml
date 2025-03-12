@@ -679,8 +679,12 @@ let merge_constraint_aux initial_env loc sg lid constr : merge_result =
         let path = path_concat id subpath in
         real_ids := path :: !real_ids ;
         begin match md.md_type, merge_info with
+        (* A module alias cannot be refined, so keep it
+           and just check that the constraint is correct *)
         | Mty_alias _, Built_TypedTree
-            { lid; constr = (Twith_module _ | Twith_type _ ) as tcstr } ->
+            { lid; constr = (Twith_module _
+                            | Twith_type _
+                            | Twith_modtype _) as tcstr } ->
             return ~replace_by:(Some current_item)
               (path, Built_TypedTree { lid; constr=tcstr} )
         | _, _ ->
@@ -877,15 +881,13 @@ let rec approx_modtype env smty =
          However, for module type constraints replacing a concrete module type,
          approximating the constraint and the body before merging can interact
          with the equivalence check that is done between the constraint and the
-         original definition:
-
-         1. It can erroneously succeed because the approximation made the module
-         types equivalent. It is believed to be harmless, because the
-         ill-formedness is caught when re-typechecking the module types (with
-         the approximation in the environment).
-
-         2. It can erroneously fail because the constraint has been approximated
-         but the body has not (named module types escape approximation).
+         original definition. As approximation only tries to build a skeleton of
+         non-recursive module types that can be used as an under-approximation
+         of the name-spaces for the typechecking phase, the equivalence check is
+         disabled, allowing for ill-formed constraints to be merged. It is
+         believed to be harmless, because the ill-formedness is caught when
+         re-typechecking the module types (with the approximation in the
+         environment).
       *)
       Mty_signature (List.fold_left
                        (approx_constraint env) initial_sig constraints)
@@ -1023,11 +1025,6 @@ and approx_constraint env body constr =
       let destructive =
         (match constr with | Pwith_modtypesubst _ -> true | _ -> false) in
       let approx_smty = approx_modtype env smty in
-      (* The equivalence check for merging non abstract module types is ignored
-         during merging. Indeed, approximation only tries to build a skeleton of
-         non-recursive module types that can be used as an under-approximation
-         of the name-spaces for the typechecking phase, where invalid
-         constraints are going to be caught. *)
       merge_constraint_approx ~destructive
         env smty.pmty_loc body id approx_smty
   (* module substitutions are ignored, but checked for cyclicity *)
