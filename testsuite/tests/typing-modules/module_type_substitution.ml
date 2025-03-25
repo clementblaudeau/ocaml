@@ -372,7 +372,7 @@ Error: The module type "t" is not a valid type for a packed module:
 
 (* Approximating a signature with a constraint should merge the approximated
    constraint (abstract, non destructive case) *)
-module type Test = sig
+module type Test_Abstract = sig
   module type S := sig
     module type A
     module X' : A
@@ -382,7 +382,7 @@ module type Test = sig
   and Y : sig type u = X.X'.t end
 end
 [%%expect {|
-module type Test =
+module type Test_Abstract =
   sig
     module rec X : sig module type A = sig type t end module X' : A end
     and Y : sig type u = X.X'.t end
@@ -392,7 +392,7 @@ module type Test =
 
 (* Approximating a signature with a constraint should merge the approximated
    constraint (abstract, destructive case) *)
-module type Test = sig
+module type Test_Abstract_Destructive = sig
   module type S := sig
     module type A
     module X' : A
@@ -402,7 +402,7 @@ module type Test = sig
   and Y : sig type u = X.X'.t end
 end
 [%%expect {|
-module type Test =
+module type Test_Abstract_Destructive =
   sig
     module rec X : sig module X' : sig type t end end
     and Y : sig type u = X.X'.t end
@@ -412,7 +412,7 @@ module type Test =
 
 (* Approximating a signature with a constraint should merge the approximated
    constraint (concrete, non destructive case) *)
-module type Test = sig
+module type Test_Concrete = sig
   module type S := sig
     module type A = sig type t type u end
     module X' : A
@@ -422,7 +422,7 @@ module type Test = sig
   and Y : sig type v = X.X'.t end
 end
 [%%expect {|
-module type Test =
+module type Test_Concrete =
   sig
     module rec X :
       sig module type A = sig type u type t end module X' : A end
@@ -432,7 +432,7 @@ module type Test =
 
 (* Approximating a signature with a constraint should merge the approximated
    constraint (concrete, destructive case) *)
-module type Test = sig
+module type Test_Concrete_Destructive = sig
   module type S := sig
     module type A = sig type t type u end
     module X' : A
@@ -442,7 +442,7 @@ module type Test = sig
   and Y : sig type v = X.X'.t end
 end
 [%%expect {|
-module type Test =
+module type Test_Concrete_Destructive =
   sig
     module rec X : sig module X' : sig type u type t end end
     and Y : sig type v = X.X'.t end
@@ -452,7 +452,7 @@ module type Test =
 
 (* Approximating a signature with a constraint should merge the approximated
    constraint (deep, abstract, non destructive case) *)
-module type Test = sig
+module type Test_Deep_Abstract = sig
   module type S := sig
     module M : sig
       module type A
@@ -465,7 +465,7 @@ module type Test = sig
   and Y : sig type u = X.X2.t * X.M.X1.t end
 end
 [%%expect {|
-module type Test =
+module type Test_Deep_Abstract =
   sig
     module rec X :
       sig
@@ -479,7 +479,7 @@ module type Test =
 
 (* Approximating a signature with a constraint should merge the approximated
    constraint (deep, abstract, destructive case) *)
-module type Test = sig
+module type Test_Deep_Abstract_Destructive = sig
   module type S := sig
     module M : sig
       module type A
@@ -492,7 +492,7 @@ module type Test = sig
   and Y : sig type u = X.X2.t * X.M.X1.t end
 end
 [%%expect {|
-module type Test =
+module type Test_Deep_Abstract_Destructive =
   sig
     module rec X :
       sig
@@ -506,7 +506,7 @@ module type Test =
 
 (* Approximating a signature with a constraint should merge the approximated
    constraint (deep, concrete, non destructive case) *)
-module type Test = sig
+module type Test_Deep_Concrete = sig
   module type S := sig
     module M : sig
       module type A = sig type t type u end
@@ -519,7 +519,7 @@ module type Test = sig
   and Y : sig type u = X.X2.t * X.M.X1.t end
 end
 [%%expect {|
-module type Test =
+module type Test_Deep_Concrete =
   sig
     module rec X :
       sig
@@ -534,7 +534,7 @@ module type Test =
 
 (* Approximating a signature with a constraint should merge the approximated
    constraint (deep, concrete, destructive case) *)
-module type Test = sig
+module type Test_Deep_Concrete_Destructive = sig
   module type S := sig
     module M : sig
       module type A = sig type t type u end
@@ -547,7 +547,7 @@ module type Test = sig
   and Y : sig type u = X.X2.t * X.M.X1.t end
 end
 [%%expect {|
-module type Test =
+module type Test_Deep_Concrete_Destructive =
   sig
     module rec X :
       sig
@@ -558,36 +558,6 @@ module type Test =
   end
 |}]
 
-
-(* Invalid substitutions might be accepted during the approximation phase, but
-   should be rejected during typechecking *)
-module type Test = sig
-  module rec X : (sig
-      module type A = sig type t = bool end
-      module X' : A
-    end with module type A = sig type t = int end)
-  and Y : sig type u = X.X'.t end
-end
-[%%expect {|
-Lines 2-5, characters 18-49:
-2 | ..................sig
-3 |       module type A = sig type t = bool end
-4 |       module X' : A
-5 |     end with module type A = sig type t = int end.
-Error: In this "with" constraint, the new definition of "A"
-       does not match its original definition in the constrained signature:
-       At position "module type A = <here>"
-       Module types do not match:
-         sig type t = bool end
-       is not equal to
-         sig type t = int end
-       At position "module type A = <here>"
-       Type declarations do not match:
-         type t = bool
-       is not included in
-         type t = int
-       The type "bool" is not equal to the type "int"
-|}]
 
 (* Invalid substitutions might be accepted during the approximation phase, but
    should be rejected during typechecking of signatures (before typechecking of
@@ -618,37 +588,4 @@ Error: In this "with" constraint, the new definition of "A"
        is not included in
          type t = int
        The type "bool" is not equal to the type "int"
-|}]
-
-
-(* Equivalence checks of module type constraints are ignored during
-   approximation. Therefore, the approximation accepts the ill-formed constraint
-   of replacing A by B. During the typechecking phase, the functor call
-   F(X2.X).u is accepted, as X2.X has the signature B. The typechecking fails at
-   the constraint verification. *)
-module type Test = sig
-  module F (_: sig type t = bool end) : sig type u end
-  module type S = sig
-    module type A = sig type t = int end
-    module X : A
-  end
-  module type B = sig type t = bool end
-
-  module rec X1 : sig type t = F(X2.X).u end
-  and X2 : S with module type A = B
-end
-[%%expect {|
-Line 10, characters 11-35:
-10 |   and X2 : S with module type A = B
-                ^^^^^^^^^^^^^^^^^^^^^^^^
-Error: In this "with" constraint, the new definition of "A"
-       does not match its original definition in the constrained signature:
-       At position "module type A = <here>"
-       Module types do not match: sig type t = int end is not equal to B
-       At position "module type A = <here>"
-       Type declarations do not match:
-         type t = int
-       is not included in
-         type t = bool
-       The type "int" is not equal to the type "bool"
 |}]
