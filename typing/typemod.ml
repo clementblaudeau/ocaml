@@ -890,10 +890,9 @@ let rec approx_modtype env smty =
          non-recursive module types that can be used as an under-approximation
          of the name-spaces for the typechecking phase, the equivalence check is
          disabled, allowing for ill-formed constraints to be merged. It is
-         believed to be harmless, because the ill-formedness is caught when
+         should be harmless, because the ill-formedness is caught when
          re-typechecking the module types (with the approximation in the
-         environment).
-      *)
+         environment).  *)
       Mty_signature (List.fold_left
                        (approx_constraint env) initial_sig constraints)
   | Pmty_typeof smod ->
