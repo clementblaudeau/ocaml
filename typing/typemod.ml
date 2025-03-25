@@ -880,9 +880,9 @@ let rec approx_modtype env smty =
          original definition:
 
          1. It can erroneously succeed because the approximation made the module
-         types equivalent. It is believed to be harmless, because the
-         ill-formedness is caught when re-typechecking the module types (with
-         the approximation in the environment).
+         types equivalent. It should be harmless, because the ill-formedness is
+         caught when re-typechecking the module types (with the approximation in
+         the environment).
 
          2. It can erroneously fail because the constraint has been approximated
          but the body has not (named module types escape approximation).
