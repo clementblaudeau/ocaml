@@ -555,6 +555,7 @@ let merge_constraint_aux initial_env loc sg lid constr : merge_result =
                      | Covariant -> true, false
                      | Contravariant -> false, true
                      | NoVariance -> false, false
+                     | Bivariant -> true, true
                    in
                    make_variance (not n) (not c) (i = Injective)
                 )
@@ -620,6 +621,7 @@ let merge_constraint_aux initial_env loc sg lid constr : merge_result =
         | Some ty ->
           raise (Error(loc, outer_sig_env, With_package_manifest (lid.txt, ty)))
         end;
+        Env.mark_type_used sig_decl.type_uid;
         let tdecl =
           Typedecl.transl_package_constraint ~loc outer_sig_env cty.ctyp_type
         in
@@ -2141,22 +2143,22 @@ and package_constraints env loc mty constrs =
     | Mty_ident p -> raise(Error(loc, env, Cannot_scrape_package_type p))
   end
 
-let modtype_of_package env loc p fl =
+let modtype_of_package env loc pack =
   (* We call Ctype.duplicate_type to ensure that the types being added to the
      module type are at generic_level. *)
   let mty =
-    package_constraints env loc (Mty_ident p)
-      (List.map (fun (n, t) -> Longident.flatten n, Ctype.duplicate_type t) fl)
+    package_constraints env loc (Mty_ident pack.pack_path)
+      (List.map (fun (n, t) -> n, Ctype.duplicate_type t) pack.pack_cstrs)
   in
   Subst.modtype Keep Subst.identity mty
 
-let package_subtype env p1 fl1 p2 fl2 =
-  let mkmty p fl =
+let package_subtype env pack1 pack2 =
+  let mkmty pack =
     let fl =
-      List.filter (fun (_n,t) -> Ctype.closed_type_expr t) fl in
-    modtype_of_package env Location.none p fl
+      List.filter (fun (_n,t) -> Ctype.closed_type_expr t) pack.pack_cstrs in
+    modtype_of_package env Location.none {pack with pack_cstrs = fl}
   in
-  match mkmty p1 fl1, mkmty p2 fl2 with
+  match mkmty pack1, mkmty pack2 with
   | exception Error(_, _, Cannot_scrape_package_type r) ->
       Result.Error (Errortrace.Package_cannot_scrape r)
   | mty1, mty2 ->
@@ -2358,14 +2360,15 @@ and type_module_aux ~alias ~strengthen ~funct_body anchor env smod =
       in
       let mty =
         match get_desc (Ctype.expand_head env exp.exp_type) with
-          Tpackage (p, fl) ->
-            check_package_closed ~loc:smod.pmod_loc ~env ~typ:exp.exp_type fl;
+          Tpackage pack ->
+            check_package_closed ~loc:smod.pmod_loc ~env ~typ:exp.exp_type
+              pack.pack_cstrs;
             if !Clflags.principal &&
               not (Typecore.generalizable (Btype.generic_level-1) exp.exp_type)
             then
               Location.prerr_warning smod.pmod_loc
                 (not_principal "this module unpacking");
-            modtype_of_package env smod.pmod_loc p fl
+            modtype_of_package env smod.pmod_loc pack
         | Tvar _ ->
             raise (Typecore.Error
                      (smod.pmod_loc, env, Typecore.Cannot_infer_signature))
@@ -3010,7 +3013,7 @@ let rec extend_path path =
   fun lid ->
     match lid with
     | Lident name -> Pdot(path, name)
-    | Ldot(m, name) -> Pdot(extend_path path m, name)
+    | Ldot({ txt = m; _ }, { txt = name; _ }) -> Pdot(extend_path path m, name)
     | Lapply _ -> assert false
 
 (* Lookup a type's longident within a signature *)
@@ -3032,16 +3035,16 @@ let lookup_type_in_sig sg =
   in
   let rec module_path = function
     | Lident name -> Pident (String.Map.find name modules)
-    | Ldot(m, name) -> Pdot(module_path m, name)
+    | Ldot({ txt = m; _ }, { txt = name; _ }) -> Pdot(module_path m, name)
     | Lapply _ -> assert false
   in
   fun lid ->
     match lid with
     | Lident name -> Pident (String.Map.find name types)
-    | Ldot(m, name) -> Pdot(module_path m, name)
+    | Ldot({ txt = m; _ }, { txt = name; _ }) -> Pdot(module_path m, name)
     | Lapply _ -> assert false
 
-let type_package env m p fl =
+let type_package env m pack =
   (* Same as Pexp_letmodule *)
   let modl, scope =
     Typetexp.TyVarEnv.with_local_scope begin fun () ->
@@ -3054,7 +3057,7 @@ let type_package env m p fl =
     end
   in
   let fl', env =
-    match fl with
+    match pack.pack_cstrs with
     | [] -> [], env
     | fl ->
       let type_path, env =
@@ -3076,7 +3079,7 @@ let type_package env m p fl =
       let fl' =
         List.fold_right
           (fun (lid, _t) fl ->
-             match type_path lid with
+             match type_path (Longident.unflatten lid |> Option.get) with
              | exception Not_found -> fl
              | path -> begin
                  match Env.find_type path env with
@@ -3094,17 +3097,18 @@ let type_package env m p fl =
       fl', env
   in
   let mty =
-    if fl = [] then (Mty_ident p)
-    else modtype_of_package env modl.mod_loc p fl'
+    if pack.pack_cstrs = [] then (Mty_ident pack.pack_path)
+    else modtype_of_package env modl.mod_loc {pack with pack_cstrs = fl'}
   in
   List.iter
     (fun (n, ty) ->
       try Ctype.unify env ty (Ctype.newvar ())
       with Ctype.Unify _ ->
-        raise (Error(modl.mod_loc, env, Scoping_pack (n,ty))))
+        let lid = Longident.unflatten n |> Option.get in
+        raise (Error(modl.mod_loc, env, Scoping_pack (lid,ty))))
     fl';
   let modl = wrap_constraint_package env true modl mty Tmodtype_implicit in
-  modl, fl'
+  modl, {pack with pack_cstrs = fl'}
 
 (* Fill in the forward declarations *)
 
@@ -3445,21 +3449,19 @@ let report_error ~loc _env = function
       let[@manual.ref "ss:valuerestriction"] manual_ref = [ 6; 1; 2 ] in
       Out_type.prepare_for_printing vars;
       Out_type.add_type_to_preparation item.val_type;
-      let sub =
-        [ Location.msg ~loc:item.val_loc
-            "The type of this value,@ %a,@ \
-             contains the non-generalizable type variable(s) %a."
-            (Style.as_inline_code Out_type.prepared_type_scheme)
-            item.val_type
-            (pp_print_list ~pp_sep:(fun f () -> fprintf f ",@ ")
-               @@ Style.as_inline_code Out_type.prepared_type_scheme) vars
-        ]
-      in
-      Location.errorf ~loc ~sub
+      Location.errorf ~loc
         "@[The type of this module,@ %a,@ \
          contains non-generalizable type variable(s).@ %a@]"
         modtype mty
         Misc.print_see_manual manual_ref
+        ~sub:[ Location.msg ~loc:item.val_loc
+                 "The type of this value,@ %a,@ \
+                  contains the non-generalizable type variable(s) %a."
+                 (Style.as_inline_code Out_type.prepared_type_scheme)
+                 item.val_type
+                 (pp_print_list ~pp_sep:(fun f () -> fprintf f ",@ ")
+                  @@ Style.as_inline_code Out_type.prepared_type_scheme) vars
+             ]
   | Implementation_is_required intf_name ->
       Location.errorf ~loc
         "@[The interface %a@ declares values, not just types.@ \
@@ -3506,9 +3508,13 @@ let report_error ~loc _env = function
         "The type of this packed module refers to %a, which is missing"
         (Style.as_inline_code path) p
   | Badly_formed_signature (context, err) ->
-      Location.errorf ~loc "@[In %s:@ %a@]"
-        context
-        Typedecl.report_error_doc err
+     let report = Typedecl.report_error ~loc err in
+     let txt =
+       Format_doc.doc_printf "In %s:@ %a"
+         context
+         Format_doc.pp_doc report.main.txt
+     in
+     { report with main = { report.main with txt} }
   | Cannot_hide_id Illegal_shadowing
       { shadowed_item_kind; shadowed_item_id; shadowed_item_loc;
         shadower_id; user_id; user_kind; user_loc } ->

@@ -73,6 +73,7 @@ and raw_type_list tl = raw_list raw_type tl
 and labeled_type_list tl = raw_list labeled_type tl
 and raw_lid_type_list tl =
   raw_list (fun ppf (lid, typ) ->
+             let lid = Longident.unflatten lid |> Option.get in
              fprintf ppf "(@,%a,@,%a)" longident lid raw_type typ)
     tl
 and raw_type_desc ppf = function
@@ -123,8 +124,10 @@ and raw_type_desc ppf = function
           match name with None -> fprintf ppf "None"
           | Some(p,tl) ->
               fprintf ppf "Some(@,%a,@,%a)" path p raw_type_list tl)
-  | Tpackage (p, fl) ->
-    fprintf ppf "@[<hov1>Tpackage(@,%a,@,%a)@]" path p raw_lid_type_list fl
+  | Tpackage pack ->
+    fprintf ppf "@[<hov1>Tpackage(@,%a,@,%a)@]"
+      path pack.pack_path
+      raw_lid_type_list pack.pack_cstrs
 and raw_row_fixed ppf = function
 | None -> fprintf ppf "None"
 | Some Types.Fixed_private -> fprintf ppf "Some Fixed_private"

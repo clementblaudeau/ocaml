@@ -88,12 +88,14 @@ Some notes:
 
 (** Utility functions. *)
 
-let rec lident_of_path = function
+let rec lident_of_path =
+  let noloc_lident_of_path p = mknoloc (lident_of_path p) in
+  function
   | Path.Pident id -> Longident.Lident (Ident.name id)
   | Path.Papply (p1, p2) ->
-      Longident.Lapply (lident_of_path p1, lident_of_path p2)
+      Longident.Lapply (noloc_lident_of_path p1, noloc_lident_of_path p2)
   | Path.Pdot (p, s) | Path.Pextra_ty (p, Pcstr_ty s) ->
-      Longident.Ldot (lident_of_path p, s)
+      Longident.Ldot (noloc_lident_of_path p, mknoloc s)
   | Path.Pextra_ty (p, _) -> lident_of_path p
 
 let map_loc sub {loc; txt} = {loc = sub.location sub loc; txt}
@@ -385,9 +387,17 @@ let case : type k . mapper -> k case -> _ = fun sub {c_lhs; c_guard; c_rhs} ->
 let value_binding sub vb =
   let loc = sub.location sub vb.vb_loc in
   let attrs = sub.attributes sub vb.vb_attributes in
-  Vb.mk ~loc ~attrs
-    (sub.pat sub vb.vb_pat)
-    (sub.expr sub vb.vb_expr)
+  let pat = sub.pat sub vb.vb_pat in
+  let pat, value_constraint =
+    match pat.ppat_desc with
+    | Ppat_constraint (pat, ({ ptyp_desc = Ptyp_poly _; _ } as cty)) ->
+      let constr =
+        Pvc_constraint { locally_abstract_univars = []; typ = cty }
+      in
+      pat, Some constr
+    | _ -> pat, None
+  in
+  Vb.mk ~loc ~attrs ?value_constraint pat (sub.expr sub vb.vb_expr)
 
 let expression sub exp =
   let loc = sub.location sub exp.exp_loc in
@@ -542,7 +552,7 @@ let expression sub exp =
     | Texp_object (cl, _) ->
         Pexp_object (sub.class_structure sub cl)
     | Texp_pack (mexpr) ->
-        Pexp_pack (sub.module_expr sub mexpr)
+        Pexp_pack (sub.module_expr sub mexpr, None)
     | Texp_letop {let_; ands; body; _} ->
         let pat, and_pats =
           extract_letop_patterns (List.length ands) body.c_lhs
@@ -572,9 +582,10 @@ let binding_op sub bop pat =
   {pbop_op; pbop_pat; pbop_exp; pbop_loc}
 
 let package_type sub pack =
-  (map_loc sub pack.pack_txt,
-    List.map (fun (s, ct) ->
-        (s, sub.typ sub ct)) pack.pack_fields)
+  { ppt_path = map_loc sub pack.tpt_txt;
+    ppt_cstrs = List.map (fun (s, ct) -> (s, sub.typ sub ct)) pack.tpt_cstrs;
+    ppt_attrs = [];
+    ppt_loc = sub.location sub pack.tpt_txt.loc }
 
 let module_type_declaration sub mtd =
   let loc = sub.location sub mtd.mtd_loc in

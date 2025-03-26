@@ -82,10 +82,12 @@ type contains_gadt =
 
 let wrong_kind_sort_of_constructor (lid : Longident.t) =
   match lid with
-  | Lident "true" | Lident "false" | Ldot(_, "true") | Ldot(_, "false") ->
+  | Lident "true" | Lident "false"
+  | Ldot(_, {txt="true"; _}) | Ldot(_, {txt="false"; _}) ->
       Boolean
-  | Lident "[]" | Lident "::" | Ldot(_, "[]") | Ldot(_, "::") -> List
-  | Lident "()" | Ldot(_, "()") -> Unit
+  | Lident "[]" | Lident "::"
+  | Ldot(_, {txt="[]"; _}) | Ldot(_, {txt="::"; _}) -> List
+  | Lident "()" | Ldot(_, {txt="()"; _}) -> Unit
   | _ -> Constructor
 
 type existential_restriction =
@@ -1561,7 +1563,8 @@ let disambiguate_lid_a_list loc closed env usage expected_type lid_a_list =
             let qual_lid =
               match qual, lid.txt with
               | Some modname, Longident.Lident s ->
-                  {lid with txt = Longident.Ldot (modname, s)}
+                  let name = { lid with txt = s } in
+                  {lid with txt = Longident.Ldot (modname, name)}
               | _ -> lid
             in
             lid, process_label qual_lid, a
@@ -3258,6 +3261,10 @@ let rec type_approx env sexp =
   | Pexp_coerce (e, sty1, sty2) ->
       let ty = type_approx env e in
       type_approx_constraint env ty (Pcoerce (sty1, sty2)) ~loc
+  | Pexp_pack (_, Some ptyp) ->
+      let ty = newvar () in
+      let sty = Ast_helper.Typ.package ~loc ptyp in
+      type_approx_constraint env ty (Pconstraint sty) ~loc
   | _ -> newvar ()
 
 and type_approx_function env params c body ~loc =
@@ -3586,7 +3593,7 @@ let name_cases default lst =
 let rec is_inferred sexp =
   match sexp.pexp_desc with
   | Pexp_ident _ | Pexp_apply _ | Pexp_field _ | Pexp_constraint _
-  | Pexp_coerce _ | Pexp_send _ | Pexp_new _ -> true
+  | Pexp_coerce _ | Pexp_send _ | Pexp_new _ | Pexp_pack (_, Some _) -> true
   | Pexp_sequence (_, e) | Pexp_open (_, e) -> is_inferred e
   | Pexp_ifthenelse (_, e1, Some e2) -> is_inferred e1 && is_inferred e2
   | _ -> false
@@ -4671,30 +4678,50 @@ and type_expect_
             exp_extra =
             (Texp_newtype name.txt, loc, sexp.pexp_attributes) :: body.exp_extra
           }
-  | Pexp_pack m ->
-      let (p, fl) =
-        match get_desc (Ctype.expand_head env (instance ty_expected)) with
-          Tpackage (p, fl) ->
-            if !Clflags.principal &&
-              get_level (Ctype.expand_head env
-                           (protect_expansion env ty_expected))
-                < Btype.generic_level
-            then
-              Location.prerr_warning loc
-                (not_principal "this module packing");
-            (p, fl)
-        | Tvar _ ->
-            raise (Error (loc, env, Cannot_infer_signature))
-        | _ ->
-            raise (Error (loc, env, Not_a_packed_module ty_expected))
-      in
-      let (modl, fl') = !type_package env m p fl in
-      rue {
-        exp_desc = Texp_pack modl;
-        exp_loc = loc; exp_extra = [];
-        exp_type = newty (Tpackage (p, fl'));
-        exp_attributes = sexp.pexp_attributes;
-        exp_env = env }
+  | Pexp_pack (m, optyp) ->
+      begin match optyp with
+      | Some ptyp ->
+        let t = Ast_helper.Typ.package ~loc:ptyp.ppt_loc ptyp in
+        let pty, exp_extra = type_constraint env t in
+        begin match get_desc (instance pty) with
+          | Tpackage pack ->
+            let (modl, pack') = !type_package env m pack in
+            let ty = newty (Tpackage pack') in
+            unify_exp_types m.pmod_loc env (instance pty) ty;
+            rue {
+              exp_desc = Texp_pack modl;
+              exp_loc = loc; exp_extra = [exp_extra, loc, []];
+              exp_type = instance pty;
+              exp_attributes = sexp.pexp_attributes;
+              exp_env = env }
+          | _ ->
+            fatal_error "[type_expect] Package not translated to a package"
+        end
+      | None ->
+        let pack =
+          match get_desc (Ctype.expand_head env (instance ty_expected)) with
+            Tpackage pack ->
+              if !Clflags.principal &&
+                get_level (Ctype.expand_head env
+                            (protect_expansion env ty_expected))
+                  < Btype.generic_level
+              then
+                Location.prerr_warning loc
+                  (not_principal "this module packing");
+              pack
+          | Tvar _ ->
+              raise (Error (loc, env, Cannot_infer_signature))
+          | _ ->
+              raise (Error (loc, env, Not_a_packed_module ty_expected))
+          in
+          let (modl, pack') = !type_package env m pack in
+          rue {
+            exp_desc = Texp_pack modl;
+            exp_loc = loc; exp_extra = [];
+            exp_type = newty (Tpackage pack');
+            exp_attributes = sexp.pexp_attributes;
+            exp_env = env }
+      end
   | Pexp_open (od, e) ->
       let tv = newvar () in
       let (od, _, newenv) = !type_open_decl env od in
@@ -5330,7 +5357,10 @@ and type_format loc str env =
         loc = loc;
       } in
       let mk_constr name args =
-        let lid = Longident.(Ldot(Lident "CamlinternalFormatBasics", name)) in
+        let lid =
+          Longident.(Ldot(mknoloc (Lident "CamlinternalFormatBasics"),
+                          mknoloc name))
+        in
         let arg = match args with
           | []          -> None
           | [ e ]       -> Some e
@@ -6722,16 +6752,15 @@ let type_expression env sexp =
 
 (* Error report *)
 
-let spellcheck ppf unbound_name valid_names =
-  Misc.did_you_mean ppf (fun () ->
-    Misc.spellcheck valid_names unbound_name
-  )
+let spellcheck unbound_name valid_names =
+  Misc.did_you_mean (Misc.spellcheck valid_names unbound_name)
 
-let spellcheck_idents ppf unbound valid_idents =
-  spellcheck ppf (Ident.name unbound) (List.map Ident.name valid_idents)
+let spellcheck_idents unbound valid_idents =
+  spellcheck (Ident.name unbound) (List.map Ident.name valid_idents)
 
 open Format_doc
 module Fmt = Format_doc
+
 module Printtyp = Printtyp.Doc
 
 let quoted_longident = Style.as_inline_code Pprintast.Doc.longident
@@ -6912,17 +6941,20 @@ let report_too_many_arg_error ~funct ~func_ty ~previous_arg_loc
       loc_end = cnum_offset ~+1 arg_end;
       loc_ghost = false }
   in
-  let hint_semicolon = if returns_unit then [
-      msg ~loc:tail_loc "@{<hint>Hint@}: Did you forget a ';'?";
-    ] else [] in
-  let sub = hint_semicolon @ [
-    msg ~loc:extra_arg_loc "This extra argument is not expected.";
-  ] in
-  errorf ~loc:app_loc ~sub
+  errorf ~loc:app_loc
     "@[<v>@[<2>%a@ %a@]\
      @ It is applied to too many arguments@]"
     (report_this_texp_has_type (Some "function")) funct
     Printtyp.type_expr func_ty
+    ~sub:(
+      let semicolon =
+        if returns_unit then
+          [msg ~loc:tail_loc "@{<hint>Hint@}: Did you forget a ';'?"]
+        else []
+      in
+      semicolon @
+      [msg ~loc:extra_arg_loc "This extra argument is not expected."]
+    )
 
 let msg = Fmt.doc_printf
 
@@ -6979,14 +7011,11 @@ let report_error ~loc env = function
         "Variable %a is bound several times in this matching"
         Style.inline_code name
   | Orpat_vars (id, valid_idents) ->
-      Location.error_of_printer ~loc (fun ppf () ->
-        fprintf ppf
-          "Variable %a must occur on both sides of this %a pattern"
-          Style.inline_code (Ident.name id)
-          Style.inline_code "|"
-        ;
-        spellcheck_idents ppf id valid_idents
-      ) ()
+     Location.aligned_error_hint ~loc
+       "@{<ralign>Variable @}%a must occur on both sides of this %a pattern"
+       Style.inline_code (Ident.name id)
+       Style.inline_code "|"
+       (spellcheck_idents id valid_idents)
   | Expr_type_clash (err, explanation, exp) ->
       let diff = type_clash_of_trace err.trace in
       let sub = report_expr_type_clash_hints exp diff in
@@ -7082,27 +7111,35 @@ let report_error ~loc env = function
       Location.errorf ~loc "The record field %a is not mutable"
         quoted_longident lid
   | Wrong_name (eorp, ty_expected, { type_path; kind; name; valid_names; }) ->
-      Location.error_of_printer ~loc (fun ppf () ->
-        Printtyp.wrap_printing_env ~error:true env (fun () ->
-          let { ty; explanation } = ty_expected in
-          if Path.is_constructor_typath type_path then begin
-            fprintf ppf
-              "@[The field %a is not part of the record \
-               argument for the %a constructor@]"
-              Style.inline_code name.txt
-              (Style.as_inline_code Printtyp.type_path) type_path;
-          end else begin
-            fprintf ppf
-              "@[@[<2>%s type@ %a%a@]@ \
-               There is no %s %a within type %a@]"
-              eorp (Style.as_inline_code Printtyp.type_expr) ty
-              pp_doc (report_type_expected_explanation_opt explanation)
-              (Datatype_kind.label_name kind)
-              Style.inline_code name.txt
-              (Style.as_inline_code Printtyp.type_path) type_path;
-          end;
-          spellcheck ppf name.txt valid_names
-      )) ()
+     Printtyp.wrap_printing_env ~error:true env (fun () ->
+         let { ty; explanation } = ty_expected in
+         if Path.is_constructor_typath type_path then
+           Location.aligned_error_hint ~loc
+             "@{<ralign>The field @}%a is not part of the record argument \
+              for the %a constructor"
+             Style.inline_code name.txt
+             (Style.as_inline_code Printtyp.type_path) type_path
+             (spellcheck name.txt valid_names)
+         else
+           let intro ppf = Fmt.fprintf ppf "@[%s type@;<1 2>%a%a@]@\n"
+             eorp (Style.as_inline_code Printtyp.type_expr) ty
+             pp_doc (report_type_expected_explanation_opt explanation)
+           in
+           let main =
+             Fmt.doc_printf "@{<ralign>There is no %s @}%a within type %a"
+             (Datatype_kind.label_name kind)
+             Style.inline_code name.txt
+             (Style.as_inline_code Printtyp.type_path) type_path
+           in
+           let main, sub =
+             match spellcheck name.txt valid_names with
+             | None -> main, []
+             | Some hint ->
+                 let main, hint = Misc.align_error_hint ~main ~hint in
+                 main, [Location.mknoloc hint]
+           in
+           Location.errorf ~loc ~sub "%t%a" intro pp_doc main
+       )
   | Name_type_mismatch (kind, lid, tp, tpl) ->
       let type_name = Datatype_kind.type_name kind in
       let name = Datatype_kind.label_name kind in
@@ -7110,7 +7147,7 @@ let report_error ~loc env = function
         | Datatype_kind.Record -> quoted_longident
         | Datatype_kind.Variant -> quoted_constr
       in
-      Location.error_of_printer ~loc (fun ppf () ->
+      Location.errorf ~loc "%t" (fun ppf ->
         Errortrace_report.ambiguous_type ppf env tp tpl
           (msg "The %s %a@ belongs to the %s type"
                name pr lid type_name)
@@ -7118,49 +7155,53 @@ let report_error ~loc env = function
                name pr lid type_name)
           (msg "but a %s was expected belonging to the %s type"
                name type_name)
-        ) ()
+        )
   | Invalid_format msg ->
       Location.errorf ~loc "%s" msg
   | Not_an_object (ty, explanation) ->
-    Location.error_of_printer ~loc (fun ppf () ->
-      fprintf ppf "This expression is not an object;@ \
-                   it has type %a"
-        (Style.as_inline_code Printtyp.type_expr) ty;
-      pp_doc ppf @@ report_type_expected_explanation_opt explanation
-    ) ()
+    Location.errorf ~loc
+      "This expression is not an object;@ it has type %a%a"
+      (Style.as_inline_code Printtyp.type_expr) ty
+      pp_doc (report_type_expected_explanation_opt explanation)
   | Undefined_method (ty, me, valid_methods) ->
-      Location.error_of_printer ~loc (fun ppf () ->
-        Printtyp.wrap_printing_env ~error:true env (fun () ->
-          fprintf ppf
-            "@[<v>@[This expression has type@;<1 2>%a@]@,\
-             It has no method %a@]"
-            (Style.as_inline_code Printtyp.type_expr) ty
-            Style.inline_code me;
-          begin match valid_methods with
-            | None -> ()
-            | Some valid_methods -> spellcheck ppf me valid_methods
-          end
-      )) ()
+     Printtyp.wrap_printing_env ~error:true env (fun () ->
+          let intro ppf =
+            Fmt.fprintf ppf
+              "@[<v>@[This expression has type@;<1 2>%a@]@,@]"
+              (Style.as_inline_code Printtyp.type_expr) ty
+          in
+          let main =
+            Fmt.doc_printf "@{<ralign>It has no method @}%a"
+              Style.inline_code me
+          in
+          let main, sub =
+            match Option.bind valid_methods (spellcheck me) with
+            | None -> main, []
+            | Some hint ->
+                let main, hint = Misc.align_error_hint ~main ~hint in
+                main, [Location.mknoloc hint]
+          in
+          Location.errorf ~sub ~loc "%t%a" intro pp_doc main
+       )
   | Undefined_self_method (me, valid_methods) ->
-      Location.error_of_printer ~loc (fun ppf () ->
-        fprintf ppf "This expression has no method %a" Style.inline_code me;
-        spellcheck ppf me valid_methods;
-      ) ()
+     Location.aligned_error_hint ~loc
+       "@{<ralign>This expression has no method @}%a"
+       Style.inline_code me
+       (spellcheck me valid_methods)
   | Virtual_class cl ->
-      Location.errorf ~loc "Cannot instantiate the virtual class %a"
-        quoted_longident cl
+     Location.errorf ~loc "Cannot instantiate the virtual class %a"
+       quoted_longident cl
   | Unbound_instance_variable (var, valid_vars) ->
-      Location.error_of_printer ~loc (fun ppf () ->
-        fprintf ppf "Unbound instance variable %a" Style.inline_code var;
-        spellcheck ppf var valid_vars;
-      ) ()
+     Location.aligned_error_hint ~loc
+       "@{<ralign>Unbound instance variable @}%a" Style.inline_code var
+       (spellcheck var valid_vars)
   | Instance_variable_not_mutable v ->
-      Location.errorf ~loc "The instance variable %a is not mutable"
-        Style.inline_code v
+     Location.errorf ~loc "The instance variable %a is not mutable"
+       Style.inline_code v
   | Not_subtype err ->
-      Location.error_of_printer ~loc (fun ppf () ->
+      Location.errorf ~loc "%t" (fun ppf ->
         Errortrace_report.subtype ppf env err "is not a subtype of"
-      ) ()
+      )
   | Outside_class ->
       Location.errorf ~loc
         "This object duplication occurs outside a method definition"
@@ -7169,23 +7210,26 @@ let report_error ~loc env = function
         "The instance variable %a is overridden several times"
         Style.inline_code v
   | Coercion_failure (ty_exp, err, b) ->
-      Location.error_of_printer ~loc (fun ppf () ->
-          let intro =
-            let ty_exp = Out_type.prepare_expansion ty_exp in
-            doc_printf "This expression cannot be coerced to type@;<1 2>%a;@ \
-                        it has type"
-              (Style.as_inline_code @@ Printtyp.type_expansion Type) ty_exp
-          in
+     let intro =
+       let ty_exp = Out_type.prepare_expansion ty_exp in
+       doc_printf "This expression cannot be coerced to type@;<1 2>%a;@ \
+                   it has type"
+         (Style.as_inline_code @@ Printtyp.type_expansion Type) ty_exp
+     in
+      Location.errorf ~loc "%t" (fun ppf ->
         Errortrace_report.unification ppf env err
           intro
-          (Fmt.doc_printf "but is here used with type");
-        if b then
-          fprintf ppf
-            ".@.@[<hov>This simple coercion was not fully general.@ \
-             @{<hint>Hint@}: Consider using a fully explicit coercion@ \
-             of the form: %a@]"
-            Style.inline_code "(foo : ty1 :> ty2)"
-      ) ()
+          (Fmt.Doc.msg "but is here used with type")
+        )
+         ~sub:(
+           if not b then [] else
+             [ Location.msg "This simple coercion was not fully general";
+               Location.msg
+                 "@{<hint>Hint@}: Consider using a fully explicit coercion@ \
+                  of the form: %a"
+                 Style.inline_code "(foo : ty1 :> ty2)"
+             ]
+         )
   | Not_a_function (ty, explanation) ->
       Location.errorf ~loc
         "This expression should not be a function,@ \

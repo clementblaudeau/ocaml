@@ -38,7 +38,7 @@ let function_without_value_parameters loc =
 let simple_longident id =
   let rec is_simple = function
     | Longident.Lident _ -> true
-    | Longident.Ldot (id, _) -> is_simple id
+    | Longident.Ldot (id, _) -> is_simple id.txt
     | Longident.Lapply _ -> false
   in
   if not (is_simple id.txt) then complex_id id.loc
@@ -57,8 +57,8 @@ let iterator =
     let loc = ty.ptyp_loc in
     match ty.ptyp_desc with
     | Ptyp_tuple ([] | [_]) -> invalid_tuple loc
-    | Ptyp_package (_, cstrs) ->
-      List.iter (fun (id, _) -> simple_longident id) cstrs
+    | Ptyp_package ptyp ->
+      List.iter (fun (id, _) -> simple_longident id) ptyp.ppt_cstrs
     | Ptyp_poly([],_) -> empty_poly_binder loc
     | _ -> ()
   in

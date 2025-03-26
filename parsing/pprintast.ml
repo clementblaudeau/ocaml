@@ -168,11 +168,11 @@ module Doc = struct
   let rec any_longident ~kind f = function
     | Lident s -> ident_of_name ~kind f s
     | Ldot(y,s) ->
-        protect_longident ~kind f (any_longident ~kind:Other) y s
+        protect_longident ~kind f (any_longident ~kind:Other) y.txt s.txt
     | Lapply (y,s) ->
         Format_doc.fprintf f "%a(%a)"
-          (any_longident ~kind:Other) y
-          (any_longident ~kind:Other) s
+          (any_longident ~kind:Other) y.txt
+          (any_longident ~kind:Other) s.txt
 
   let value_longident ppf l = any_longident ~kind:Other ppf l
   let longident = value_longident
@@ -248,6 +248,7 @@ let type_variance = function
   | NoVariance -> ""
   | Covariant -> "+"
   | Contravariant -> "-"
+  | Bivariant -> "+-"
 
 let type_injectivity = function
   | NoInjectivity -> ""
@@ -522,16 +523,16 @@ and core_type1 ctxt f x =
     | (Ptyp_arrow _ | Ptyp_alias _ | Ptyp_poly _) ->
        paren true (core_type ctxt) f x
 
-and package_type ctxt f (lid, cstrs) =
+and package_type ctxt f ptyp =
   let aux f (s, ct) =
     pp f "type %a@ =@ %a" (with_loc type_longident) s (core_type ctxt) ct
   in
-  match cstrs with
-  | [] -> with_loc type_longident f lid
+  match ptyp.ppt_cstrs with
+  | [] -> with_loc type_longident f ptyp.ppt_path
   | _ ->
     pp f "%a@ with@ %a"
-      (with_loc type_longident) lid
-      (list aux  ~sep:"@ and@ ")  cstrs
+      (with_loc type_longident) ptyp.ppt_path
+      (list aux ~sep:"@ and@ ") ptyp.ppt_cstrs
 
 (********************pattern********************)
 (* be cautious when use [pattern], [pattern1] is preferred *)
@@ -722,7 +723,8 @@ and sugar_expr ctxt f e =
       match id, List.map snd args with
       | Lident "!", [e] ->
         pp f "@[<hov>!%a@]" (simple_expr ctxt) e; true
-      | Ldot (path, ("get"|"set" as func)), a :: other_args -> begin
+      | Ldot ({txt=path;_}, {txt=("get"|"set" as func);_}), a :: other_args ->
+        begin
           let assign = func = "set" in
           let print = print_indexop a None assign in
           match path, other_args with
@@ -730,18 +732,20 @@ and sugar_expr ctxt f e =
             print ".(" "" ")" (expression ctxt) [i] rest
           | Lident "String", i :: rest ->
             print ".[" "" "]" (expression ctxt) [i] rest
-          | Ldot (Lident "Bigarray", "Array1"), i1 :: rest ->
+          | Ldot ({txt=Lident "Bigarray";_}, {txt="Array1";_}), i1 :: rest ->
             print ".{" "," "}" (simple_expr ctxt) [i1] rest
-          | Ldot (Lident "Bigarray", "Array2"), i1 :: i2 :: rest ->
+          | Ldot ({txt=Lident "Bigarray";_}, {txt="Array2";_}),
+                  i1 :: i2 :: rest ->
             print ".{" "," "}" (simple_expr ctxt) [i1; i2] rest
-          | Ldot (Lident "Bigarray", "Array3"), i1 :: i2 :: i3 :: rest ->
+          | Ldot ({txt=Lident "Bigarray";_}, {txt="Array3";_}),
+                  i1 :: i2 :: i3 :: rest ->
             print ".{" "," "}" (simple_expr ctxt) [i1; i2; i3] rest
-          | Ldot (Lident "Bigarray", "Genarray"),
+          | Ldot ({txt=Lident "Bigarray";_}, {txt="Genarray";_}),
             {pexp_desc = Pexp_array indexes; pexp_attributes = []} :: rest ->
               print ".{" "," "}" (simple_expr ctxt) indexes rest
           | _ -> false
         end
-      | (Lident s | Ldot(_,s)) , a :: i :: rest
+      | (Lident s | Ldot(_,{txt=s;_})) , a :: i :: rest
         when first_is '.' s ->
           (* extract operator:
              assignment operators end with [right_bracket ^ "<-"],
@@ -763,7 +767,7 @@ and sugar_expr ctxt f e =
             | '}' -> '{', "}"
             | _ -> assert false in
           let path_prefix = match id with
-            | Ldot(m,_) -> Some m
+            | Ldot(m,_) -> Some m.txt
             | _ -> None in
           let left = String.sub s 0 (1+String.index s left) in
           print_indexop a path_prefix assign left ";" right
@@ -1009,8 +1013,10 @@ and simple_expr ctxt f x =
     (* |`Normal -> longident_loc f li *)
     (* | `Prefix _ | `Infix _ -> pp f "( %a )" longident_loc li) *)
     | Pexp_constant c -> constant f c;
-    | Pexp_pack me ->
-        pp f "(module@;%a)" (module_expr ctxt) me
+    | Pexp_pack (me, opty) ->
+        pp f "(module@;%a" (module_expr ctxt) me;
+        Option.iter (pp f " :@ %a" (package_type ctxt)) opty;
+        pp f ")"
     | Pexp_tuple l ->
         pp f "@[<hov2>(%a)@]" (list (tuple_expr_component ctxt) ~sep:",@;") l
     | Pexp_constraint (e, ct) ->
@@ -1024,7 +1030,7 @@ and simple_expr ctxt f x =
         let longident_x_expression f ( li, e) =
           match e with
           |  {pexp_desc=Pexp_ident {txt;_};
-              pexp_attributes=[]; _} when li.txt = txt ->
+              pexp_attributes=[]; _} when Longident.same li.txt txt ->
               pp f "@[<hov2>%a@]" value_longident_loc li
           | _ ->
               pp f "@[<hov2>%a@;=@;%a@]"

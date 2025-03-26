@@ -95,6 +95,8 @@ let mkcf ~loc ?attrs ?docs d =
 let mkrhs rhs loc = mkloc rhs (make_loc loc)
 let ghrhs rhs loc = mkloc rhs (ghost_loc loc)
 
+let ldot lid lid_loc name loc = Ldot (mkrhs lid lid_loc, mkrhs name loc)
+
 let push_loc x acc =
   if x.Location.loc_ghost
   then acc
@@ -120,21 +122,10 @@ let mkpatvar ~loc name =
   mkpat ~loc (Ppat_var (mkrhs name loc))
 
 (*
-  Ghost expressions and patterns:
-  expressions and patterns that do not appear explicitly in the
-  source file they have the loc_ghost flag set to true.
-  Then the profiler will not try to instrument them and the
-  -annot option will not try to display their type.
+  See ./location.mli for when to use a ghost location or not.
 
   Every grammar rule that generates an element with a location must
   make at most one non-ghost element, the topmost one.
-
-  How to tell whether your location must be ghost:
-  A location corresponds to a range of characters in the source file.
-  If the location contains a piece of code that is syntactically
-  valid (according to the documentation), and corresponds to the
-  AST node, then the location must be real; in all other cases,
-  it must be ghost.
 *)
 let ghexp ~loc d = Exp.mk ~loc:(ghost_loc loc) d
 let ghpat ~loc d = Pat.mk ~loc:(ghost_loc loc) d
@@ -345,8 +336,8 @@ let builtin_arraylike_name loc _ ~assign paren_kind n =
          | Two -> "Array2"
          | Three -> "Array3"
          | Many -> "Genarray" in
-       Ldot(Lident "Bigarray", submodule_name) in
-   ghloc ~loc (Ldot(prefix,opname))
+       Ldot(mknoloc (Lident "Bigarray"), mknoloc submodule_name) in
+   ghloc ~loc (Ldot(mknoloc prefix, mknoloc opname))
 
 let builtin_arraylike_index loc paren_kind index = match paren_kind with
     | Paren | Bracket -> One, [Nolabel, index]
@@ -376,7 +367,7 @@ let user_indexing_operator_name loc (prefix,ext) ~assign paren_kind n =
     String.concat "" ["."; ext; left; mid; right; assign] in
   let lid = match prefix with
     | None -> Lident name
-    | Some p -> Ldot(p,name) in
+    | Some p -> Ldot(mknoloc p,mknoloc name) in
   ghloc ~loc lid
 
 let user_index loc _ index =
@@ -405,9 +396,9 @@ let indexop_unclosed_error loc_s s loc_e =
   let left, right = paren_to_strings s in
   unclosed left loc_s right loc_e
 
-let lapply ~loc p1 p2 =
+let lapply ~loc p1 loc_p1 p2 loc_p2 =
   if !Clflags.applicative_functors
-  then Lapply(p1, p2)
+  then Lapply(mkrhs p1 loc_p1, mkrhs p2 loc_p2)
   else raise (Syntaxerr.Error(
                   Syntaxerr.Applicative_path (make_loc loc)))
 
@@ -2549,9 +2540,9 @@ simple_expr:
   | NEW ext_attributes mkrhs(class_longident)
       { Pexp_new($3), $2 }
   | LPAREN MODULE ext_attributes module_expr RPAREN
-      { Pexp_pack $4, $3 }
-  | LPAREN MODULE ext_attributes module_expr COLON package_type RPAREN
-      { Pexp_constraint (ghexp ~loc:$sloc (Pexp_pack $4), $6), $3 }
+      { Pexp_pack ($4, None), $3 }
+  | LPAREN MODULE ext_attributes module_expr COLON package_type_ RPAREN
+      { Pexp_pack ($4, Some $6), $3 }
   | LPAREN MODULE ext_attributes module_expr COLON error
       { unclosed "(" $loc($1) ")" $loc($6) }
   | OBJECT ext_attributes class_structure END
@@ -2657,10 +2648,10 @@ simple_expr:
     LBRACKET expr_semi_list error
       { unclosed "[" $loc($3) "]" $loc($5) }
   | od=open_dot_declaration DOT LPAREN MODULE ext_attributes module_expr COLON
-    package_type RPAREN
+    ptyp = package_type_ RPAREN
       { let modexp =
           mkexp_attrs ~loc:($startpos($3), $endpos)
-            (Pexp_constraint (ghexp ~loc:$sloc (Pexp_pack $6), $8)) $5 in
+            (Pexp_pack ($6, Some ptyp)) $5 in
         Pexp_open(od, modexp) }
   | mod_longident DOT
     LPAREN MODULE ext_attributes module_expr COLON error
@@ -3388,10 +3379,16 @@ type_variance:
   | INFIXOP2
       { if $1 = "+!" then Covariant, Injective else
         if $1 = "-!" then Contravariant, Injective else
+        if $1 = "+-" then Bivariant, NoInjectivity else
+        if $1 = "-+" then Bivariant, NoInjectivity else
+        if $1 = "+-!" then Bivariant, Injective else
+        if $1 = "-+!" then Bivariant, Injective else
         expecting $loc($1) "type_variance" }
   | PREFIXOP
       { if $1 = "!+" then Covariant, Injective else
         if $1 = "!-" then Contravariant, Injective else
+        if $1 = "!+-" then Bivariant, Injective else
+        if $1 = "!-+" then Bivariant, Injective else
         expecting $loc($1) "type_variance" }
 ;
 
@@ -3874,10 +3871,12 @@ atomic_type:
       { tys }
 ;
 
-%inline package_type: module_type
+%inline package_type_: module_type
       { let (lid, cstrs, attrs) = package_type_of_module_type $1 in
-        let descr = Ptyp_package (lid, cstrs) in
-        mktyp ~loc:$sloc ~attrs descr }
+        Typ.package_type ~loc:(make_loc $sloc) ~attrs lid cstrs }
+
+%inline package_type: package_type_
+      { mktyp ~loc:$sloc (Ptyp_package $1) }
 ;
 %inline row_field_list:
   separated_nonempty_llist(BAR, row_field)
@@ -4048,13 +4047,13 @@ constr_ident:
 ;
 constr_longident:
     mod_longident       %prec below_DOT  { $1 } /* A.B.x vs (A).B.x */
-  | mod_longident DOT constr_extra_ident { Ldot($1,$3) }
+  | mod_longident DOT constr_extra_ident { ldot $1 $loc($1) $3 $loc($3) }
   | constr_extra_ident                   { Lident $1 }
   | constr_extra_nonprefix_ident         { Lident $1 }
 ;
 mk_longident(prefix,final):
    | final            { Lident $1 }
-   | prefix DOT final { Ldot($1,$3) }
+   | prefix DOT final { ldot $1 $loc($1) $3 $loc($3) }
 ;
 val_longident:
     mk_longident(mod_longident, val_ident) { $1 }
@@ -4071,7 +4070,7 @@ mod_longident:
 mod_ext_longident:
     mk_longident(mod_ext_longident, UIDENT) { $1 }
   | mod_ext_longident LPAREN mod_ext_longident RPAREN
-      { lapply ~loc:$sloc $1 $3 }
+      { lapply ~loc:$sloc $1 $loc($1) $3 $loc($3) }
   | mod_ext_longident LPAREN error
       { expecting $loc($3) "module path" }
 ;

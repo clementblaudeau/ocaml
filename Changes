@@ -21,6 +21,9 @@ Working version
 
 ### Runtime system:
 
+- #13819: Fix field initialisation bug in runtime events subsystem.
+  (Nick Barnes, review by Gabriel Scherer).
+
 - #13785: Add `Runtime_events.Timestamp.get_current`.
   (Simon Cruanes)
 
@@ -103,6 +106,10 @@ Working version
   (Tim McGilchrist, review by Nick Barnes, Antonin Décimo,
    Stephen Dolan and Miod Vallat)
 
+- #13827: Avoid re-marking ephemerons with trivial data.
+  (Stephen Dolan, review by Nick Barnes and Josh Berdine, benchmarking by
+   Nicolás Ojeda Bär)
+
 ### Code generation and optimizations:
 
 * #13050: Use '$' instead of '.' to separate module names in symbol names.
@@ -138,7 +145,16 @@ Working version
   `.size` and `.type` directives and the `.note.GNU-stack` section
   (Samuel Hym, review by Miod Vallat, Antonin Décimo and Gabriel Scherer)
 
+- #13807: Allow unaligned memory accesses on ARM64. (Matthew Else, review by
+  Xavier Leroy)
+
 ### Standard library:
+
+- #13885: Add Dynarray.{exists2, for_all2}.
+  (T. Kinsart, review by Daniel Bünzli, Gabriel Scherer, and Nicolás Ojeda Bär)
+
+- #13836: Add [Float.]Array.{equal,compare}.
+  (Daniel Bünzli, review by Nicolás Ojeda Bär and Gabriel Scherer)
 
 - #13796: Add Uchar.utf_8_decode_length_of_byte and
   Uchar.max_utf_8_decode_length.
@@ -160,14 +176,15 @@ Working version
   (Florian Angeletti, review by Nicolás Ojeda Bär, Daniel Bünzli,
    and Gabriel Scherer)
 
-- #13753: Add Stdlib.phys_equal
-  (Thomas Blanc and Léo Andrès, review by Gabriel Scherer and Florian Angeletti)
+- #13753 #13755: Add Stdlib.Repr
+  (Kate Deplaix, Thomas Blanc and Léo Andrès, review by Gabriel Scherer,
+   Florian Angeletti, Nicolás Ojeda Bär, Daniel Bünzli and Jeremy Yallop)
 
 - #13731: Add Either.retract
   (Daniel Bünzli, review by Nicolás Ojeda Bär and David Allsopp)
 
 - #13729: Add Seq.filteri
-  (Tima Kinsart, review by Nicolás Ojeda Bär and Daniel Bünzli)
+  (T. Kinsart, review by Nicolás Ojeda Bär and Daniel Bünzli)
 
 - #13721: Add Result.retract
   (Daniel Bünzli, review by Gabriel Scherer, Nicolás Ojeda Bär and
@@ -203,7 +220,7 @@ Working version
 - #13740: Improve performance of Weak.find_aux
   (Josh Berdine, review by Gabriel Scherer)
 
-- #15049: Improve performance and type safety of Type.Id by using
+- #13782: Improve performance and type safety of Type.Id by using
   [%extension_constructor] instead of Obj.Extension_constructor.of_val.
   (Basile Clément, review by Vincent Laviron and Nicolás Ojeda Bär)
 
@@ -211,6 +228,16 @@ Working version
   runtime system and the `unix` library.
   (Yves Ndiaye and Nicolás Ojeda Bär, review by Daniel Bünzli and Nicolás Ojeda
   Bär)
+
+- #13569: add a `Format.format_text` which adds break hints to format literals.
+  (Florian Angeletti, review by Nicolás Ojeda Bär, Daniel Bünzli,
+   and Gabriel Scherer)
+
+- #13578: On Windows, use the OS CSPRNG to seed the Stdlib.Random generator.
+  (Antonin Décimo, review by Miod Vallat, Nicolás Ojeda Bär, and Xavier Leroy)
+
+- #13859: Fix Weak.get_copy not darkening custom blocks
+  (Josh Berdine, review by Stephen Dolan)
 
 ### Other libraries:
 
@@ -266,6 +293,11 @@ Working version
 - #13764, #13779: add missing "-keywords" flag to ocamldep and ocamlprof
   (Florian Angeletti, report by Prashanth Mundkur, review by Gabriel Scherer)
 
+- #13877: ocamldoc, add a `-latex-escape-underscore` flag to control the
+  escaping of `_` underscore in latex references (in order to be able to match
+  odoc behaviour).
+  (Florian Angeletti, review by Gabriel Scherer)
+
 ### Manual and documentation:
 
 - #13694: Fix name for caml_hash_variant in the C interface.
@@ -305,6 +337,32 @@ Working version
 - #13646: Improve the error messages when a recursive module type
   references another recursive module type.
   (Stefan Muenzel, review by Florian Angeletti and Gabriel Scherer)
+
+- #13702, #13865: Specialized error messages for functors appearing in contexts
+  where non-functors were expected `module A: sig ... end = Set.Make`
+  (and the reverse)
+  (Florian Angeletti, report by Jeremy Yallop, review by Gabriel Scherer)
+
+- #13788, #13813: Keep the module context in spellchecking hints.
+  `Fun.protact` now prompts `Did you mean "Fun.protect?"` rather than
+  `Did you mean "protect?"`.
+  (Florian Angeletti, suggestion by Daniel Bünzli, review by Gabriel Scherer)
+
+- #13809: Distinguish `(module M : S)` and `(module M) : (module S)` and
+  change locations of error messages when `S` is ill-typed in `(module S)`
+  (Samuel Vivien, review by Florian Angeletti and Gabriel Scherer)
+
+- #13814: Add an `unused-type-declaration` when using a `t as 'a` with no other
+  occurences of `'a`
+  (Samuel Vivien, review by Florian Angeletti)
+
+- #13817: align spellchecking hints with the possibly misspelled identifier/
+              Error: Unbound type constructor "aray"
+              Hint:              Did you mean "array"?
+  (Florian Angeletti, suggestion by Daniel Bünzli, review by Gabriel Scherer)
+
+- #13818: better delimited hints in error message
+  (Florian Angeletti, review by Gabriel Scherer)
 
 ### Internal/compiler-libs changes:
 
@@ -350,6 +408,25 @@ Working version
   (Gabriel Scherer, review by Vincent Laviron and David Allsopp,
    suggested by David Allsopp)
 
+- #13302: Store locations of longidents components
+  (Ulysse Gérard and Jules Aguillon, review by Jules Aguillon
+   and Florian Angeletti)
+
+- #13820: Add a new option -i-variance to print the variance of every
+  type parameter; bivariance is printed as `+-`, and for consistency,
+  parser is modified too to accept `+-` and `-+` as `type_variance`.
+  (Takafumi Saikawa and Jacques Garrigue, review by Florian Angeletti)
+
+- #13848: Add all paths components to the cmt files indexes
+  (Ulysse Gérard, review by Florian Angeletti)
+
+- #13856: Add a new indirection in types AST called `package` that stores the
+  content of a `Tpackage` node
+  (Samuel Vivien, review by Florian Angeletti)
+
+- #13884 Correctly index modules in constructors and labels paths
+  (Ulysse Gérard, review by Florian Angeletti)
+
 ### Build system:
 
 - #13431: Simplify github action responsible for flagging PRs with
@@ -375,9 +452,9 @@ Working version
 
 ### Bug fixes:
 
-- #13691: Make four globals underlying Gc.control atomic to avoid C data
-  races against them
-  (Jan Midtgaard, review by Miod Vallat and Sadiq Jaffer)
+- #13691 #13895: Make four globals underlying Gc.control atomic to avoid C data
+  races against them.
+  (Jan Midtgaard, review by Miod Vallat, Sadiq Jaffer and Antonin Décimo)
 
 - #13454: Output a correct trace of the C_CALLN bytecode.
   (Miod Vallat, review by Antonin Décimo)
@@ -406,9 +483,32 @@ Working version
 - #13763: Track type of variables bound by as-patterns
   (Leo White, review by Gabriel Scherer, port by Vincent Laviron)
 
+- #13778, #13811: do not warn for unused type declarations when the type is used
+  in a first-class module type (`module S with type t = int)`.
+  (Florian Angeletti, report by Nicolás Ojeda Bär, review by Gabriel Scherer)
+
 - #13790: Fix bytecode-only build of Cygwin when flexlink is being bootstrapped
   with the compiler.
   (David Allsopp, review by Antonin Décimo and Miod Vallat)
+
+- #13812: Add forgotten check about the validity of the type variable name on
+  the right-hand side of `_ as _`.
+  (Samuel Vivien, review by Gabriel Scherer)
+
+- #13845: Fix bug in untypeast/pprintast for value bindings with polymorphic
+  type annotations.
+  (Chris Casinghino, review by Florian Angeletti and Gabriel Scherer)
+
+- #13867: Fix bug with some recursive bindings of lazy values.
+  (Guillaume Bury and Vincent Laviron, review by Stefan Muenzel
+   and Gabriel Scherer)
+
+- #13875, #13878: Add dedicated constructor for mutable variable access in
+  Cmm to prevent bugs linked to incorrect handling of coeffects.
+  (Vincent Laviron, review by Gabriel Scherer)
+
+- #13880: Make object stat counters atomic
+  (Dimitris Mostrous, review by Gabriel Scherer and Nicolás Ojeda Bär)
 
 OCaml 5.3.0 (8 January 2025)
 ----------------------------
@@ -560,8 +660,9 @@ OCaml 5.3.0 (8 January 2025)
   (Xavier Leroy, report by Jan Midtgaard, analysis by Stephen Dolan,
    review by Miod Vallat)
 
-- #13407: Add Runtime_events.EV_EMPTY_MINOR
-  (Thomas Leonard)
+- #13407: Add Runtime_events.EV_EMPTY_MINOR.
+  (Thomas Leonard, review by KC Sivaramakrishnan, Sadiq Jaffer and
+  Gabriel Scherer)
 
 - #13522: Confirm runtime events ring is still active after callback.
   (KC Sivaramakrishnan, review by Sadiq Jaffer and Miod Vallat)
@@ -2101,7 +2202,7 @@ OCaml 5.1.0 (14 September 2023)
   `Seq.find_mapi`, `Seq.find_index`, `Array.find_mapi`, `Array.find_index`,
   `Float.Array.find_opt`, `Float.Array.find_index`, `Float.Array.find_map`,
   `Float.Array.find_mapi`.
-  (Tima Kinsart, review by Daniel Bünzli and Nicolás Ojeda Bär)
+  (T. Kinsart, review by Daniel Bünzli and Nicolás Ojeda Bär)
 
 - #11410: Add Set.to_list, Map.to_list, Map.of_list,
   `Map.add_to_list: key -> 'a -> 'a list t -> 'a list t`.

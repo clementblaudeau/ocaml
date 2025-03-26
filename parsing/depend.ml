@@ -49,7 +49,7 @@ let rec lookup_free p m =
 let rec lookup_map lid m =
   match lid with
     Lident s    -> String.Map.find s m
-  | Ldot (l, s) -> String.Map.find s (get_map (lookup_map l m))
+  | Ldot (l, s) -> String.Map.find s.txt (get_map (lookup_map l.txt m))
   | Lapply _    -> raise Not_found
 
 let free_structure_names = ref String.Set.empty
@@ -65,8 +65,8 @@ let rec add_path bv ?(p=[]) = function
       (*String.Set.iter (fun s -> Printf.eprintf "%s " s) free;
         prerr_endline "";*)
       add_names free
-  | Ldot(l, s) -> add_path bv ~p:(s::p) l
-  | Lapply(l1, l2) -> add_path bv l1; add_path bv l2
+  | Ldot(l, s) -> add_path bv ~p:(s.txt::p) l.txt
+  | Lapply(l1, l2) -> add_path bv l1.txt; add_path bv l2.txt
 
 let open_module bv lid =
   match lookup_map lid bv with
@@ -78,7 +78,7 @@ let open_module bv lid =
 
 let add_parent bv lid =
   match lid.txt with
-    Ldot(l, _s) -> add_path bv l
+    Ldot(l, _s) -> add_path bv l.txt
   | _ -> ()
 
 let add = add_parent
@@ -120,9 +120,9 @@ let rec add_type bv ty =
     add_type bv t
   | Ptyp_extension e -> handle_extension e
 
-and add_package_type bv (lid, l) =
-  add bv lid;
-  List.iter (add_type bv) (List.map (fun (_, e) -> e) l)
+and add_package_type bv ptyp =
+  add bv ptyp.ppt_path;
+  List.iter (fun (_, ty) -> add_type bv ty) ptyp.ppt_cstrs
 
 let add_opt add_fn bv = function
     None -> ()
@@ -255,7 +255,8 @@ let rec add_expr bv exp =
   | Pexp_object { pcstr_self = pat; pcstr_fields = fieldl } ->
       let bv = add_pattern bv pat in List.iter (add_class_field bv) fieldl
   | Pexp_newtype (_, e) -> add_expr bv e
-  | Pexp_pack m -> add_module_expr bv m
+  | Pexp_pack (m, opty) ->
+      add_module_expr bv m; add_opt add_package_type bv opty
   | Pexp_open (o, e) ->
       let bv = open_declaration bv o in
       add_expr bv e

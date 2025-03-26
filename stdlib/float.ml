@@ -185,7 +185,7 @@ module Array = struct
 
   external unsafe_fill
     : t -> (int[@untagged]) -> (int[@untagged]) -> (float[@unboxed]) -> unit
-    = "caml_floatarray_fill" "caml_floatarray_fill_unboxed"
+    = "caml_floatarray_fill" "caml_floatarray_fill_unboxed" [@@noalloc]
 
   external unsafe_blit: t -> int -> t -> int -> int -> unit =
     "caml_floatarray_blit" [@@noalloc]
@@ -271,7 +271,8 @@ module Array = struct
     else if length a2 = 0 then unsafe_sub a1 0 l1
     else append_prim a1 a2
 
-  let fill a ofs len v =
+  (* inlining exposes a float-unboxing opportunity for [v] *)
+  let[@inline] fill a ofs len v =
     check a ofs len "Float.Array.fill";
     unsafe_fill a ofs len v
 
@@ -291,6 +292,25 @@ module Array = struct
       | h :: t -> unsafe_set result i h; fill (i + 1) t
     in
     fill 0 l
+
+  (* duplicated from array.ml *)
+  let equal eq a b =
+    if length a <> length b then false else
+    let i = ref 0 in
+    let len = length a in
+    while !i < len && eq (unsafe_get a !i) (unsafe_get b !i) do incr i done;
+    !i = len
+
+  let float_compare = compare
+  (* duplicated from array.ml *)
+  let compare cmp a b =
+    let len_a = length a and len_b = length b in
+    let diff = len_a - len_b in
+    if diff <> 0 then (if diff < 0 then -1 else 1) else
+    let i = ref 0 and c = ref 0 in
+    while !i < len_a && !c = 0
+    do c := cmp (unsafe_get a !i) (unsafe_get b !i); incr i done;
+    !c
 
   (* duplicated from array.ml *)
   let iter f a =
@@ -387,7 +407,7 @@ module Array = struct
     let n = length a in
     let rec loop i =
       if i = n then false
-      else if compare (unsafe_get a i) x = 0 then true
+      else if float_compare (unsafe_get a i) x = 0 then true
       else loop (i + 1)
     in
     loop 0

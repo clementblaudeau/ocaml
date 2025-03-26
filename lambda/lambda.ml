@@ -39,6 +39,14 @@ type is_safe =
   | Safe
   | Unsafe
 
+type lazy_block_tag =
+  | Lazy_tag
+  | Forward_tag
+
+let tag_of_lazy_tag = function
+  | Lazy_tag -> Config.lazy_tag
+  | Forward_tag -> Obj.forward_tag
+
 type primitive =
   | Pbytes_to_string
   | Pbytes_of_string
@@ -48,6 +56,7 @@ type primitive =
   | Psetglobal of Ident.t
   (* Operations on heap blocks *)
   | Pmakeblock of int * mutable_flag * block_shape
+  | Pmakelazyblock of lazy_block_tag
   | Pfield of int * immediate_or_pointer * mutable_flag
   | Pfield_computed
   | Psetfield of int * immediate_or_pointer * initialization_or_assignment
@@ -721,7 +730,10 @@ let transl_class_path loc env path =
 let transl_prim mod_name name =
   let pers = Ident.create_persistent mod_name in
   let env = Env.add_persistent_structure pers Env.empty in
-  let lid = Longident.Ldot (Longident.Lident mod_name, name) in
+  let lid =
+    Longident.Ldot (Location.mknoloc (Longident.Lident mod_name),
+                    Location.mknoloc name)
+  in
   match Env.find_value_by_name lid env with
   | path, _ -> transl_value_path Loc_unknown env path
   | exception Not_found ->
