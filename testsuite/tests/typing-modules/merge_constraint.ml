@@ -617,3 +617,41 @@ Lines 4-8, characters 18-26:
 Error: In this "with" constraint, replacing "X0" by "F(X)" would
        introduce an invalid alias at "X1"
 |}]
+
+(** Aliases and substitutions **)
+
+(* Non destructive type and module type substitutions inside an alias should
+   preserve the alias signature. By contrast, destructive type and module type
+   substitutions force inlining and lose the alias information (could be fixed
+   with transparent ascription) *)
+
+type base = A | B
+module X = struct
+  type t = base = A | B
+  module type T = sig end
+end
+
+module type S = sig module Y = X end
+module type S1  = S with type Y.t = base
+module type S2  = S with module type Y.T = sig end
+[%%expect {|
+type base = A | B
+module X : sig type t = base = A | B module type T = sig end end
+module type S = sig module Y = X end
+module type S1 = sig module Y = X end
+module type S2 = sig module Y = X end
+|}]
+
+(* Losing the alias makes the subtyping fail *)
+module type Test_destructive_type = S with type Y.t := base
+[%%expect {|
+module type Test_destructive_type =
+  sig module Y : sig module type T = X.T end end
+|}]
+
+(* Losing the alias makes the subtyping fail *)
+module type Test_destructive_modtype = S with module type Y.T := sig end
+[%%expect {|
+module type Test_destructive_modtype =
+  sig module Y : sig type t = base = A | B end end
+|}]
