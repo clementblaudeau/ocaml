@@ -422,3 +422,64 @@ Error: In this "with" constraint, the new definition of "M.N"
          type t = M.r
        The type "X.t" is not equal to the type "M.r" = "M.N.s"
 |}]
+
+
+(** Aliases and substitutions **)
+
+(* Non destructive type and module type substitutions inside an alias should
+   preserve the alias signature. By contrast, destructive type and module type
+   substitutions force inlining and lose the alias information (could be fixed
+   with transparent ascription) *)
+
+type base = A | B
+module X = struct
+  type t = base = A | B
+  module type T = sig end
+end
+
+module type S = sig module Y = X end
+module type S1  = S with type Y.t = base
+module type S2  = S with module type Y.T = sig end
+[%%expect {|
+type base = A | B
+module X : sig type t = base = A | B module type T = sig end end
+module type S = sig module Y = X end
+module type S1 = sig module Y = X end
+module type S2 = sig module Y = X end
+|}]
+
+(* Losing the alias makes the subtyping fail *)
+module F_destructive_type (Y: S with type Y.t := base) : S = Y
+[%%expect {|
+Line 1, characters 61-62:
+1 | module F_destructive_type (Y: S with type Y.t := base) : S = Y
+                                                                 ^
+Error: Signature mismatch:
+       Modules do not match:
+         sig module Y : sig module type T = X.T end end
+       is not included in
+         S
+       In module "Y":
+       Modules do not match:
+         sig module type T = Y.T end
+       is not included in
+         (module X)
+|}]
+
+(* Losing the alias makes the subtyping fail *)
+module F_destructive_modtype (Y: S with module type Y.T := sig end) : S = Y
+[%%expect {|
+Line 1, characters 74-75:
+1 | module F_destructive_modtype (Y: S with module type Y.T := sig end) : S = Y
+                                                                              ^
+Error: Signature mismatch:
+       Modules do not match:
+         sig module Y : sig type t = base = A | B end end
+       is not included in
+         S
+       In module "Y":
+       Modules do not match:
+         sig type t = base = A | B end
+       is not included in
+         (module X)
+|}]
