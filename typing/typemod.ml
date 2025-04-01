@@ -57,6 +57,7 @@ type error =
   | With_makes_applicative_functor_ill_typed of
       Longident.t * Path.t * Includemod.explanation
   | With_changes_module_alias of Longident.t * Ident.t * Path.t
+  | With_lost_alias of Ident.t * Path.t
   | With_cannot_remove_constrained_type
   | With_package_manifest of Longident.t * type_expr
   | Repeated_name of Sig_component_kind.t * string
@@ -561,6 +562,10 @@ module Merge = struct
                  change the resulting signature *)
               return_payload ~ghosts
                 ~replace_by:(Some current_item) path ~payload
+          | Mty_alias lost_alias, true ->
+              (* Destructive deep substitutions inside aliases are disallowed,
+                 as they would lose the alias signature *)
+              raise (Error(loc, initial_env, With_lost_alias (id, lost_alias)))
           | _, _ ->
               let new_md = {md with md_type = Mty_signature newsg} in
               let new_item = Sig_module(id, Mp_present, new_md, rs, priv) in
@@ -3415,6 +3420,14 @@ let report_error ~loc _env = function
         (Style.as_inline_code longident) lid
         Style.inline_code (Path.name path)
         Style.inline_code (Ident.name id)
+  | With_lost_alias(mod_id, lost_alias_path) ->
+      Location.errorf ~loc
+        "@[<v>\
+           @[This deep destructive %a substitution inside of %a would @ \
+             loose the aliasing to %a @].@]"
+        Style.inline_code "with"
+        (Style.as_inline_code ident) mod_id
+        Style.inline_code (Path.name lost_alias_path)
   | With_cannot_remove_constrained_type ->
       Location.errorf ~loc
         "@[<v>Destructive substitutions are not supported for constrained @ \

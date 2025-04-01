@@ -451,35 +451,19 @@ module type S2 = sig module Y = X end
 (* Losing the alias makes the subtyping fail *)
 module F_destructive_type (Y: S with type Y.t := base) : S = Y
 [%%expect {|
-Line 1, characters 61-62:
+Line 1, characters 30-53:
 1 | module F_destructive_type (Y: S with type Y.t := base) : S = Y
-                                                                 ^
-Error: Signature mismatch:
-       Modules do not match:
-         sig module Y : sig module type T = X.T end end
-       is not included in
-         S
-       In module "Y":
-       Modules do not match:
-         sig module type T = Y.T end
-       is not included in
-         (module X)
+                                  ^^^^^^^^^^^^^^^^^^^^^^^
+Error: This deep destructive "with" substitution inside of "Y" would
+       loose the aliasing to "X" .
 |}]
 
 (* Losing the alias makes the subtyping fail *)
 module F_destructive_modtype (Y: S with module type Y.T := sig end) : S = Y
 [%%expect {|
-Line 1, characters 74-75:
+Line 1, characters 33-66:
 1 | module F_destructive_modtype (Y: S with module type Y.T := sig end) : S = Y
-                                                                              ^
-Error: Signature mismatch:
-       Modules do not match:
-         sig module Y : sig type t = base = A | B end end
-       is not included in
-         S
-       In module "Y":
-       Modules do not match:
-         sig type t = base = A | B end
-       is not included in
-         (module X)
+                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Error: This deep destructive "with" substitution inside of "Y" would
+       loose the aliasing to "X" .
 |}]
