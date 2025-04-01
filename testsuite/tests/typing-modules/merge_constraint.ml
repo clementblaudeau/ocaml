@@ -645,13 +645,19 @@ module type S2 = sig module Y = X end
 (* Losing the alias makes the subtyping fail *)
 module type Test_destructive_type = S with type Y.t := base
 [%%expect {|
-module type Test_destructive_type =
-  sig module Y : sig module type T = X.T end end
+Line 1, characters 36-59:
+1 | module type Test_destructive_type = S with type Y.t := base
+                                        ^^^^^^^^^^^^^^^^^^^^^^^
+Error: This deep destructive "with" substitution inside of "Y" would
+       lose the aliasing to "X" .
 |}]
 
 (* Losing the alias makes the subtyping fail *)
 module type Test_destructive_modtype = S with module type Y.T := sig end
 [%%expect {|
-module type Test_destructive_modtype =
-  sig module Y : sig type t = base = A | B end end
+Line 1, characters 39-72:
+1 | module type Test_destructive_modtype = S with module type Y.T := sig end
+                                           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Error: This deep destructive "with" substitution inside of "Y" would
+       lose the aliasing to "X" .
 |}]
