@@ -371,6 +371,10 @@ Working version
 - #13818: better delimited hints in error message
   (Florian Angeletti, review by Gabriel Scherer)
 
+- #13911: Added an `Lost alias` error message for deep destructive substitutions
+  inside alias signatures
+  (Clement Blaudeau)
+
 ### Internal/compiler-libs changes:
 
 - #13314: Comment the code of Translclass
