@@ -676,6 +676,10 @@ module Merge = struct
                  change the resulting signature *)
               return_payload ~ghosts
                 ~replace_by:(Some current_item) path ~payload
+          | Mty_alias lost_alias, true ->
+              (* Destructive deep substitutions inside aliases are disallowed,
+                 as they would loose the alias signature *)
+              raise (Error(loc, initial_env, With_lost_alias (id, lost_alias)))
           | _, _ ->
               let new_md = {md with md_type = Mty_signature newsg} in
               let new_item = Sig_module(id, Mp_present, new_md, rs, priv) in
