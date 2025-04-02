@@ -531,18 +531,13 @@ module Merge = struct
   (* Main recursive knot to handle deep merges *)
   let rec merge_signature initial_env env sg namelist loc lid
       ~patch ~destructive =
-    try
-      begin
-        match
-          Signature_group.replace_in_place
-            (patch_deep_item ~patch ~destructive
-               namelist initial_env env sg loc lid) sg
-        with
-        | Some ((p, paths, payload), sg) -> p, paths, payload, sg
-        | None -> raise(Error(loc, initial_env, With_no_component lid.txt))
-      end
-    with Includemod.Error explanation ->
-      raise(Error(loc, initial_env, With_mismatch(lid.txt, explanation)))
+    match
+      Signature_group.replace_in_place
+        (patch_deep_item ~patch ~destructive
+           namelist initial_env env sg loc lid) sg
+    with
+    | Some ((p, paths, payload), sg) -> p, paths, payload, sg
+    | None -> raise(Error(loc, initial_env, With_no_component lid.txt))
 
   and patch_deep_item ~ghosts ~patch ~destructive
       namelist initial_env (env: Env.t) outer_sg loc lid item =
@@ -578,7 +573,10 @@ module Merge = struct
   let merge ~patch ~destructive env sg loc lid =
     let initial_env = env in
     let names = Longident.flatten lid.txt in
-    merge_signature ~patch ~destructive initial_env env sg names loc lid
+    try
+      merge_signature ~patch ~destructive initial_env env sg names loc lid
+    with Includemod.Error explanation ->
+      raise(Error(loc, initial_env, With_mismatch(lid.txt, explanation)))
 
   (* sg with type lid = sdecl *)
   let merge_type ~destructive env loc sg lid sdecl =

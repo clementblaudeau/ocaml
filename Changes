@@ -371,7 +371,7 @@ Working version
 - #13818: better delimited hints in error message
   (Florian Angeletti, review by Gabriel Scherer)
 
-- #13911: Added an `Lost alias` error message for deep destructive substitutions
+* #13911: Added an `Lost alias` error message for deep destructive substitutions
   inside alias signatures
   (Clement Blaudeau)
 
