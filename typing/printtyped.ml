@@ -111,6 +111,11 @@ let fmt_partiality f x =
   | Total -> ()
   | Partial -> fprintf f " (Partial)"
 
+let fmt_presence f x =
+  match x with
+  | Types.Mp_present -> fprintf f "(Present)"
+  | Types.Mp_absent -> fprintf f "(Absent)"
+
 let line i f s (*...*) =
   fprintf f "%s" (String.make (2*i) ' ');
   fprintf f s (*...*)
@@ -767,7 +772,9 @@ and signature_item i ppf x =
       line i ppf "Tsig_exception\n";
       type_exception i ppf ext
   | Tsig_module md ->
-      line i ppf "Tsig_module \"%a\"\n" fmt_modname md.md_id;
+      line i ppf "Tsig_module \"%a\" %a\n"
+        fmt_modname md.md_id
+        fmt_presence md.md_presence;
       attributes i ppf md.md_attributes;
       module_type i ppf md.md_type
   | Tsig_modsubst ms ->
@@ -892,7 +899,8 @@ and structure_item i ppf x =
       line i ppf "Tstr_exception\n";
       type_exception i ppf ext;
   | Tstr_module x ->
-      line i ppf "Tstr_module\n";
+      line i ppf "Tstr_module %a\n"
+        fmt_presence x.mb_presence ;
       module_binding i ppf x
   | Tstr_recmodule bindings ->
       line i ppf "Tstr_recmodule\n";
