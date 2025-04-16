@@ -1,15 +1,31 @@
 (* TEST
- flags = "-dtypedtree";
+ flags = "-dtypedtree -dno-locations";
  expect;
 *)
 
 module X = struct end
 [%%expect{|
 [
-  structure_item ([1,45+0]..[1,45+21])
+  structure_item
     Tstr_module (Present)
     X/281
-      module_expr ([1,45+11]..[1,45+21])
+      module_expr
+        Tmod_structure
+        []
+]
+
+module X : sig end
+|}]
+
+module X = struct end [@foo]
+[%%expect{|
+[
+  structure_item
+    Tstr_module (Present)
+    X/282
+      module_expr
+        attribute "foo"
+          []
         Tmod_structure
         []
 ]
@@ -20,11 +36,11 @@ module X : sig end
 module Y = X
 [%%expect{|
 [
-  structure_item ([1,258+0]..[1,258+12])
+  structure_item
     Tstr_module (Absent)
-    Y/282
-      module_expr ([1,258+11]..[1,258+12])
-        Tmod_ident "X/281"
+    Y/283
+      module_expr
+        Tmod_ident "X/282"
 ]
 
 module Y = X
@@ -33,15 +49,16 @@ module Y = X
 module type T = sig module Y = X end
 [%%expect{|
 [
-  structure_item ([1,452+0]..[1,452+36])
-    Tstr_modtype "T/284"
-      module_type ([1,452+16]..[1,452+36])
+  structure_item
+    Tstr_modtype "T/285"
+      module_type
         Tmty_signature
         [
-          signature_item ([1,452+20]..[1,452+32])
-            Tsig_module "Y/283" (Absent)
-            module_type ([1,452+31]..[1,452+32])
-              Tmty_alias "X/281"
+          signature_item
+            Tsig_module (Absent)
+            Y/284
+              module_type
+                Tmty_alias "X/282"
         ]
 ]
 

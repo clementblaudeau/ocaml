@@ -772,11 +772,8 @@ and signature_item i ppf x =
       line i ppf "Tsig_exception\n";
       type_exception i ppf ext
   | Tsig_module md ->
-      line i ppf "Tsig_module \"%a\" %a\n"
-        fmt_modname md.md_id
-        fmt_presence md.md_presence;
-      attributes i ppf md.md_attributes;
-      module_type i ppf md.md_type
+      line i ppf "Tsig_module %a\n" fmt_presence md.md_presence;
+      module_declaration i ppf md
   | Tsig_modsubst ms ->
       line i ppf "Tsig_modsubst \"%a\" = %a\n"
         fmt_ident ms.ms_id fmt_path ms.ms_manifest;
@@ -811,7 +808,7 @@ and signature_item i ppf x =
       attribute i ppf "Tsig_attribute" a
 
 and module_declaration i ppf md =
-  line i ppf "%a" fmt_modname md.md_id;
+  line i ppf "%a\n" fmt_modname md.md_id;
   attributes i ppf md.md_attributes;
   module_type (i+1) ppf md.md_type;
 
@@ -899,8 +896,7 @@ and structure_item i ppf x =
       line i ppf "Tstr_exception\n";
       type_exception i ppf ext;
   | Tstr_module x ->
-      line i ppf "Tstr_module %a\n"
-        fmt_presence x.mb_presence ;
+      line i ppf "Tstr_module %a\n" fmt_presence x.mb_presence;
       module_binding i ppf x
   | Tstr_recmodule bindings ->
       line i ppf "Tstr_recmodule\n";
