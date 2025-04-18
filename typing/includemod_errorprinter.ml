@@ -346,6 +346,7 @@ module With_shorthand = struct
   let modtype (r : _ named) = match r.item with
     | Types.Mty_ident _
     | Types.Mty_static_alias _
+    | Types.Mty_transparent _
     | Types.Mty_signature []
       -> Original r.item
     | Types.Mty_signature _ | Types.Mty_functor _

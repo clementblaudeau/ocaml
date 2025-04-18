@@ -738,6 +738,7 @@ and module_type i ppf x =
   match x.mty_desc with
   | Tmty_ident (li,_) -> line i ppf "Tmty_ident %a\n" fmt_path li;
   | Tmty_static_alias (li,_) -> line i ppf "Tmty_static_alias %a\n" fmt_path li;
+  | Tmty_transparent (li,_) -> line i ppf "Tmty_transparent %a\n" fmt_path li;
   | Tmty_signature (s) ->
       line i ppf "Tmty_signature\n";
       signature i ppf s;

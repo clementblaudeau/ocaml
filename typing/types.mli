@@ -669,6 +669,7 @@ type module_type =
     Mty_ident of Path.t
   | Mty_signature of signature
   | Mty_functor of functor_parameter * module_type
+  | Mty_transparent of Path.t
   | Mty_static_alias of Path.t
 
 and functor_parameter =

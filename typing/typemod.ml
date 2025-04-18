@@ -98,14 +98,20 @@ let rec path_concat head p =
 let extract_sig env loc mty =
   match Env.scrape_alias env mty with
     Mty_signature sg -> sg
-  | Mty_static_alias path ->
+    (* The signature of unlinked modules aliases (when using
+       [-no-alias-deps]) cannot be extracted *)
+  | Mty_static_alias path
+  | Mty_transparent path ->
       raise(Error(loc, env, Cannot_scrape_alias path))
   | _ -> raise(Error(loc, env, Signature_expected))
 
 let extract_sig_open env loc mty =
   match Env.scrape_alias env mty with
     Mty_signature sg -> sg
-  | Mty_static_alias path ->
+    (* The signature of unlinked modules aliases (when using
+       [-no-alias-deps]) cannot be extracted *)
+  | Mty_static_alias path
+  | Mty_transparent path ->
       raise(Error(loc, env, Cannot_scrape_alias path))
   | mty -> raise(Error(loc, env, Structure_expected mty))
 
@@ -2056,6 +2062,7 @@ let path_of_module mexp =
 let rec nongen_modtype env = function
     Mty_ident _ -> None
   | Mty_static_alias _ -> None
+  | Mty_transparent _ -> None
   | Mty_signature sg ->
       let env = Env.add_signature sg env in
       List.find_map (nongen_signature_item env) sg
@@ -2281,6 +2288,7 @@ and package_constraints env loc mty constrs =
     match Mtype.scrape env mty with
     | Mty_signature sg ->
         Mty_signature (package_constraints_sig env loc sg constrs)
+    | Mty_transparent _  (* UNSURE about this one *)
     | Mty_functor _ | Mty_static_alias _ -> assert false
     | Mty_ident p -> raise(Error(loc, env, Cannot_scrape_package_type p))
   end
@@ -2680,6 +2688,7 @@ and type_one_application ~ctx:(apply_loc,sfunct,md_f,args)
         | _ -> Includemod.Anonymous_functor
       in
       raise(Includemod.Apply_error {loc=apply_loc;env;app_name;mty_f;args})
+  | Mty_transparent _ -> failwith "TODO: transparent ascription step 1"
 
 and type_open_decl ?used_slot ?toplevel ~funct_body names env sod =
   Builtin_attributes.warning_scope sod.popen_attributes
@@ -3126,6 +3135,7 @@ let type_structure =
 let rec normalize_modtype = function
     Mty_ident _
   | Mty_static_alias _ -> ()
+  | Mty_transparent _ -> ()
   | Mty_signature sg -> normalize_signature sg
   | Mty_functor(_param, body) -> normalize_modtype body
 

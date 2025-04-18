@@ -615,6 +615,8 @@ and print_simple_out_module_type ppf =
      end
   | Omty_static_alias id ->
       fprintf ppf "(module %a)" print_ident id
+  | Omty_transparent _id ->
+      failwith "TODO: transparent ascription step 1"
   | Omty_functor _ as non_simple ->
      fprintf ppf "(%a)" print_out_module_type non_simple
 and print_out_signature ppf =
@@ -668,6 +670,8 @@ and print_out_sig_item ppf =
       fprintf ppf "@[<2>module type %s =@ %a@]" name !out_module_type mty
   | Osig_module (name, Omty_static_alias id, _) ->
       fprintf ppf "@[<2>module %s =@ %a@]" name print_ident id
+  | Osig_module (_name, Omty_transparent _id, _) ->
+      failwith "TODO: transparent ascription step 1"
   | Osig_module (name, mty, rs) ->
       fprintf ppf "@[<2>%s %s :@ %a@]"
         (match rs with Orec_not -> "module"

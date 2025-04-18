@@ -1015,6 +1015,7 @@ let get_components c =
 let modtype_of_functor_appl fcomp p1 p2 =
   match fcomp.fcomp_res with
   | Mty_static_alias _ as mty -> mty
+  | Mty_transparent _ as mty -> mty
   | mty ->
       try
         Hashtbl.find fcomp.fcomp_subst_cache p2
@@ -1355,7 +1356,8 @@ let rec normalize_module_path lax env = function
 
 and expand_module_path lax env path =
   try match find_module_lazy ~alias:true path env with
-    {mdl_type=MtyL_static_alias path1} ->
+  | {mdl_type=MtyL_static_alias path1}
+  | {mdl_type=MtyL_transparent path1} ->
       let path' = normalize_module_path lax env path1 in
       if lax || !Clflags.no_alias_deps then path' else
       let id = Path.head path in
@@ -1891,6 +1893,7 @@ let rec components_of_module_maker
           fcomp_subst_cache = Hashtbl.create 17 })
   | MtyL_ident _ -> Error No_components_abstract
   | MtyL_static_alias p -> Error (No_components_alias p)
+  | MtyL_transparent p -> Error (No_components_alias p)
 
 (* Insertion of bindings by identifier + path *)
 
@@ -2549,7 +2552,8 @@ let read_signature u =
   let md = Subst.Lazy.force_module_decl mda.mda_declaration in
   match md.md_type with
   | Mty_signature sg -> sg
-  | Mty_ident _ | Mty_functor _ | Mty_static_alias _ -> assert false
+  | Mty_ident _ | Mty_functor _ | Mty_static_alias _
+  | Mty_transparent _ -> assert false
 
 
 let unit_name_of_filename fn =

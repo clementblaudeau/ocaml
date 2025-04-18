@@ -1700,7 +1700,7 @@ module Analyser =
       | Parsetree.Pmty_ident _longident ->
           let k = analyse_module_type_kind env current_module_name module_type sig_module_type in
           Module_with ( k, "" )
-      | Parsetree.Pmty_alias _longident ->
+      | Parsetree.Pmty_alias _ ->
           begin
             match sig_module_type with
               Types.Mty_static_alias path ->

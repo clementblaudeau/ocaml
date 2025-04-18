@@ -212,6 +212,7 @@ let subst_module_type env t =
         in
         Mty_ident new_p
     | Mty_static_alias _
+    | Mty_transparent _
     | Mty_signature _ ->
         t
     | Mty_functor (Unit, mt) -> Mty_functor (Unit, iter mt)
