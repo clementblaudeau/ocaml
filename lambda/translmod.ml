@@ -238,6 +238,7 @@ let init_shape id modl =
   let rec init_shape_mod path loc env mty =
     match Mtype.scrape env mty with
       Mty_ident _
+    | Mty_transparent _
     | Mty_static_alias _ ->
         let info = Unsafe {reason=Unsafe_module_binding;loc; path} in
         raise (Initialization_failure info)

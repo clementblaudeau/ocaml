@@ -140,6 +140,7 @@ let strengthen_decl ~aliasable env md p =
 let rec make_aliases_absent pres mty =
   match mty with
   | Mty_static_alias _ -> Mp_absent, mty
+  | Mty_transparent _ -> failwith "TODO: transparent ascription step 1"
   | Mty_signature sg ->
       pres, Mty_signature(make_aliases_absent_sig sg)
   | Mty_functor(arg, res) ->
@@ -203,6 +204,7 @@ let rec nondep_mty_with_presence env va ids pres mty =
           nondep_mty_with_presence env va ids Mp_present expansion.md_type
       | None -> pres, mty
       end
+  | Mty_transparent _p -> failwith "TODO: transparent ascription step 1"
   | Mty_signature sg ->
       let mty = Mty_signature(nondep_sig env va ids sg) in
       pres, mty
@@ -313,6 +315,7 @@ let rec type_paths env p mty =
   match scrape env mty with
     Mty_ident _ -> []
   | Mty_static_alias _ -> []
+  | Mty_transparent _ -> failwith "TODO: transparent ascription step 1"
   | Mty_signature sg -> type_paths_sig env p sg
   | Mty_functor _ -> []
 
@@ -340,6 +343,7 @@ let rec no_code_needed_mod env pres mty =
       | Mty_signature sg -> no_code_needed_sig env sg
       | Mty_functor _ -> false
       | Mty_static_alias _ -> false
+      | Mty_transparent _ -> failwith "TODO: transparent ascription step 1"
     end
 
 and no_code_needed_sig env sg =
@@ -374,6 +378,7 @@ let rec contains_type env = function
       contains_type_sig env sg
   | Mty_functor (_, body) ->
       contains_type env body
+  | Mty_transparent _ -> ()
   | Mty_static_alias _ -> ()
 
 and contains_type_sig env = List.iter (contains_type_item env)

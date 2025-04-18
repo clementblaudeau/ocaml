@@ -435,6 +435,7 @@ let retrieve_functor_params env mty =
         | Ok mty ->  retrieve_functor_params before env mty
         | Error _ -> { Error.params = List.rev before; res }
         end
+    | Mty_transparent _ -> failwith "TODO: transparent ascription step 1"
     | Mty_functor (p, res) -> retrieve_functor_params (p :: before) env res
     | Mty_signature _ as res -> { Error.params = List.rev before; res }
   in
@@ -630,6 +631,7 @@ and try_modtypes ~core ~direction ~loc env subst mty1 mty2 orig_shape =
        (retrieve_functor_params env mty2)
   | _, Mty_static_alias _ ->
       Error (Error.Mt_core Error.Not_an_alias)
+  | _, _ -> failwith "TODO: transparent ascription step 1"
 
 (* Functor parameters *)
 
@@ -1156,7 +1158,8 @@ module Functor_inclusion_diff = struct
 
   let keep_expansible_param = function
     | Mty_ident _
-    | Mty_static_alias _ as mty -> Some mty
+    | Mty_static_alias _
+    | Mty_transparent _ as mty -> Some mty
     | Mty_signature _ | Mty_functor _ -> None
 
   let lookup_expansion { env ; res ; _ } = match res with

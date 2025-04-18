@@ -683,6 +683,8 @@ let module_type (sub : mapper) mty =
   let desc = match mty.mty_desc with
       Tmty_ident (_path, lid) -> Pmty_ident (map_loc sub lid)
     | Tmty_static_alias (_path, lid) -> Pmty_alias (map_loc sub lid)
+    | Tmty_transparent (_path, _lid) ->
+       failwith "TODO: transparent ascription step 1"
     | Tmty_signature sg -> Pmty_signature (sub.signature sub sg)
     | Tmty_functor (arg, mtype2) ->
         Pmty_functor (functor_parameter sub arg, sub.module_type sub mtype2)

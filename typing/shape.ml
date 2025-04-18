@@ -153,6 +153,7 @@ and desc =
   | App of t * t
   | Struct of t Item.Map.t
   | Static_alias of t
+  | Transparent of t
   | Leaf
   | Proj of t * Item.t
   | Comp_unit of string
@@ -215,6 +216,9 @@ let print fmt t =
     | Static_alias t ->
         Format.fprintf fmt "Static_alias@[(@[<v>%a@,%a@])@]"
           print_uid_opt uid aux t
+    | Transparent t ->
+        Format.fprintf fmt "Transparent@[(@[<v>%a@,%a@])@]"
+          print_uid_opt uid aux t
     | Error s ->
         Format.fprintf fmt "Error %s" s
   in
@@ -225,6 +229,7 @@ let print fmt t =
 
 let rec strip_head_aliases = function
   | { desc = Static_alias t; _ } -> strip_head_aliases t
+  | { desc = Transparent t; _ } -> strip_head_aliases t
   | t -> t
 
 let fresh_var ?(name="shape-var") uid =
@@ -244,6 +249,9 @@ let str ?uid map =
 
 let static_alias ?uid t =
   { uid; desc = Static_alias t; approximated = false}
+
+let transparent ?uid t =
+  { uid; desc = Transparent t; approximated = false}
 
 let leaf uid =
   { uid = Some uid; desc = Leaf; approximated = false }
