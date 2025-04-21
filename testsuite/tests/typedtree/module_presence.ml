@@ -58,7 +58,7 @@ module type T = sig module Y = X end
             Tsig_module (Absent)
             Y/284
               module_type
-                Tmty_alias "X/282"
+                Tmty_static_alias "X/282"
         ]
 ]
 

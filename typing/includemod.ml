@@ -430,7 +430,7 @@ let retrieve_functor_params env mty =
         | Some mty -> retrieve_functor_params before env mty
         | None -> { Error.params = List.rev before; res }
         end
-    | Mty_alias p as res ->
+    | Mty_static_alias p as res ->
         begin match expand_module_alias ~strengthen:false env p with
         | Ok mty ->  retrieve_functor_params before env mty
         | Error _ -> { Error.params = List.rev before; res }
@@ -513,12 +513,12 @@ let rec modtypes ~core ~direction ~loc env subst mty1 mty2 shape =
 
 and try_modtypes ~core ~direction ~loc env subst mty1 mty2 orig_shape =
   match mty1, mty2 with
-  | (Mty_alias p1, Mty_alias p2) ->
+  | (Mty_static_alias p1, Mty_static_alias p2) ->
       if (equal_module_paths env p1 subst p2) then
           Ok (Tcoerce_none, orig_shape)
       else
         Error Error.(Mt_core Incompatible_aliases)
-  | (Mty_alias p1, _) -> begin
+  | (Mty_static_alias p1, _) -> begin
       match
         Env.normalize_module_path (Some Location.none) env p1
       with
@@ -628,7 +628,7 @@ and try_modtypes ~core ~direction ~loc env subst mty1 mty2 orig_shape =
      Error.functor_params
        (retrieve_functor_params env mty1)
        (retrieve_functor_params env mty2)
-  | _, Mty_alias _ ->
+  | _, Mty_static_alias _ ->
       Error (Error.Mt_core Error.Not_an_alias)
 
 (* Functor parameters *)
@@ -868,7 +868,7 @@ and signature_components ~core ~direction ~loc old_env env subst
                 match pres1, pres2, mty1.md_type with
                 | Mp_present, Mp_present, _ -> true, item
                 | _, Mp_absent, _ -> false, item
-                | Mp_absent, Mp_present, Mty_alias p1 ->
+                | Mp_absent, Mp_present, Mty_static_alias p1 ->
                     true, Result.map (fun i -> Tcoerce_alias (env, p1, i)) item
                 | Mp_absent, Mp_present, _ -> assert false
               in
@@ -1155,7 +1155,8 @@ module Functor_inclusion_diff = struct
 
 
   let keep_expansible_param = function
-    | Mty_ident _ | Mty_alias _ as mty -> Some mty
+    | Mty_ident _
+    | Mty_static_alias _ as mty -> Some mty
     | Mty_signature _ | Mty_functor _ -> None
 
   let lookup_expansion { env ; res ; _ } = match res with

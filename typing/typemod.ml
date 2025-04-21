@@ -98,14 +98,14 @@ let rec path_concat head p =
 let extract_sig env loc mty =
   match Env.scrape_alias env mty with
     Mty_signature sg -> sg
-  | Mty_alias path ->
+  | Mty_static_alias path ->
       raise(Error(loc, env, Cannot_scrape_alias path))
   | _ -> raise(Error(loc, env, Signature_expected))
 
 let extract_sig_open env loc mty =
   match Env.scrape_alias env mty with
     Mty_signature sg -> sg
-  | Mty_alias path ->
+  | Mty_static_alias path ->
       raise(Error(loc, env, Cannot_scrape_alias path))
   | mty -> raise(Error(loc, env, Structure_expected mty))
 
@@ -335,7 +335,8 @@ let check_usage_of_path_of_substituted_item paths ~loc ~lid env super =
       assert (match last with Pident _ -> true | _ -> false);
     { super with
       Btype.it_signature_item = (fun self -> function
-      | Sig_module (id, _, { md_type = Mty_alias aliased_path; _ }, _, _)
+      | Sig_module (id, _, {
+            md_type = Mty_static_alias aliased_path; _ }, _, _)
         when List.exists
             (fun p -> path_is_prefix p ~prefix:aliased_path ~strict:true) rest
         ->
@@ -379,7 +380,8 @@ let check_invalid_aliases paths ~loc env invalid_alias super =
       in
       { super with
         Btype.it_signature_item = (fun self -> function
-            | Sig_module (id, _, {md_type = Mty_alias aliased_path}, _, _)
+            | Sig_module (id, _,
+                {md_type = Mty_static_alias aliased_path}, _, _)
               when would_become_invalid_path aliased_path ->
                 raise(Error(loc, Lazy.force !env,
                             With_creates_invalid_aliases
@@ -616,7 +618,7 @@ module Merge = struct
         let path = path_concat id subpath in
         begin
           match md.md_type, destructive with
-          | Mty_alias _, false ->
+          | Mty_static_alias _, false ->
               (* Deep non-destructive substitutions inside aliases are checked,
                  but do not change the resulting signature *)
               return_payload ~ghosts
@@ -974,7 +976,7 @@ let rec approx_modtype env smty =
         Env.lookup_module_path ~use:false ~load:false
           ~loc:smty.pmty_loc lid.txt env
       in
-      Mty_alias(path)
+      Mty_static_alias(path)
   | Pmty_signature ssg ->
       Mty_signature(approx_sig env ssg)
   | Pmty_functor(param, sres) ->
@@ -1048,7 +1050,7 @@ and approx_sig env ssg =
           let md = approx_module_declaration env pmd in
           let pres =
             match md.Types.md_type with
-            | Mty_alias _ -> Mp_absent
+            | Mty_static_alias _ -> Mp_absent
             | _ -> Mp_present
           in
           let id, newenv =
@@ -1064,7 +1066,7 @@ and approx_sig env ssg =
           in
           let pres =
             match md.Types.md_type with
-            | Mty_alias _ -> Mp_absent
+            | Mty_static_alias _ -> Mp_absent
             | _ -> Mp_present
           in
           let _, newenv =
@@ -1497,7 +1499,7 @@ and transl_modtype_aux env smty =
         smty.pmty_attributes
   | Pmty_alias lid ->
       let path = transl_module_alias loc env lid.txt in
-      mkmty (Tmty_alias (path, lid)) (Mty_alias path) env loc
+      mkmty (Tmty_static_alias (path, lid)) (Mty_static_alias path) env loc
         smty.pmty_attributes
   | Pmty_signature ssg ->
       let sg = transl_signature env ssg in
@@ -1689,7 +1691,7 @@ and transl_signature env sg =
             in
             let pres =
               match tmty.mty_type with
-              | Mty_alias p ->
+              | Mty_static_alias p ->
                   if not (Env.is_aliasable p env) then
                     raise (Error (pmd.pmd_loc, env, Cannot_alias p));
                   Mp_absent
@@ -1733,7 +1735,7 @@ and transl_signature env sg =
               if not aliasable then
                 md
               else
-                { md_type = Mty_alias path;
+                { md_type = Mty_static_alias path;
                   md_attributes = pms.pms_attributes;
                   md_loc = pms.pms_loc;
                   md_uid = Uid.mk ~current_unit:(Env.get_current_unit ());
@@ -1741,7 +1743,7 @@ and transl_signature env sg =
             in
             let pres =
               match md.md_type with
-              | Mty_alias _ -> Mp_absent
+              | Mty_static_alias _ -> Mp_absent
               | _ -> Mp_present
             in
             let id, newenv =
@@ -2053,7 +2055,7 @@ let path_of_module mexp =
 
 let rec nongen_modtype env = function
     Mty_ident _ -> None
-  | Mty_alias _ -> None
+  | Mty_static_alias _ -> None
   | Mty_signature sg ->
       let env = Env.add_signature sg env in
       List.find_map (nongen_signature_item env) sg
@@ -2279,7 +2281,7 @@ and package_constraints env loc mty constrs =
     match Mtype.scrape env mty with
     | Mty_signature sg ->
         Mty_signature (package_constraints_sig env loc sg constrs)
-    | Mty_functor _ | Mty_alias _ -> assert false
+    | Mty_functor _ | Mty_static_alias _ -> assert false
     | Mty_ident p -> raise(Error(loc, env, Cannot_scrape_package_type p))
   end
 
@@ -2391,7 +2393,7 @@ and type_module_aux ~alias ~strengthen ~funct_body anchor env smod =
         Env.lookup_module_path ~load:(not alias) ~loc:smod.pmod_loc lid.txt env
       in
       let md = { mod_desc = Tmod_ident (path, lid);
-                 mod_type = Mty_alias path;
+                 mod_type = Mty_static_alias path;
                  mod_env = env;
                  mod_attributes = smod.pmod_attributes;
                  mod_loc = smod.pmod_loc } in
@@ -2399,7 +2401,11 @@ and type_module_aux ~alias ~strengthen ~funct_body anchor env smod =
       let shape =
         Env.shape_of_path ~namespace:Shape.Sig_component_kind.Module env path
       in
-      let shape = if alias && aliasable then Shape.alias shape else shape in
+      let shape =
+        if alias && aliasable then
+          Shape.static_alias shape
+        else shape
+      in
       let md =
         if alias && aliasable then
           (Env.add_required_global (Path.head path); md)
@@ -2411,7 +2417,7 @@ and type_module_aux ~alias ~strengthen ~funct_body anchor env smod =
               (Env.find_module path env).md_type
           in
           match mty with
-          | Mty_alias p1 when not alias ->
+          | Mty_static_alias p1 when not alias ->
               let p1 = Env.normalize_module_path (Some smod.pmod_loc) env p1 in
               let mty = Includemod.expand_module_alias
                   ~strengthen env p1 in
@@ -2664,7 +2670,7 @@ and type_one_application ~ctx:(apply_loc,sfunct,md_f,args)
         mod_loc = app_loc },
       Shape.app ~arg:arg_shape funct_shape
     end
-  | Mty_alias path ->
+  | Mty_static_alias path ->
       raise(Error(app_view.f_loc, env, Cannot_scrape_alias path))
   | Mty_ident _ | Mty_signature _  ->
       let args = List.map simplify_app_summary args in
@@ -2689,7 +2695,7 @@ and type_open_decl_aux ?used_slot ?toplevel ~funct_body names env od =
       type_open_ ?used_slot ?toplevel od.popen_override env loc lid
     in
     let md = { mod_desc = Tmod_ident (path, lid);
-               mod_type = Mty_alias path;
+               mod_type = Mty_static_alias path;
                mod_env = env;
                mod_attributes = od.popen_expr.pmod_attributes;
                mod_loc = od.popen_expr.pmod_loc }
@@ -2878,7 +2884,7 @@ and type_str_item ~names ~toplevel ~funct_body anchor env shape_map
         in
         let pres =
           match modl.mod_type with
-          | Mty_alias _ -> Mp_absent
+          | Mty_static_alias _ -> Mp_absent
           | _ -> Mp_present
         in
         let md_uid = Uid.mk ~current_unit:(Env.get_current_unit ()) in
@@ -3119,7 +3125,7 @@ let type_structure =
 
 let rec normalize_modtype = function
     Mty_ident _
-  | Mty_alias _ -> ()
+  | Mty_static_alias _ -> ()
   | Mty_signature sg -> normalize_signature sg
   | Mty_functor(_param, body) -> normalize_modtype body
 

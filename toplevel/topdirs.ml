@@ -418,7 +418,7 @@ let () =
                        {md with md_type = trim_signature md.md_type},
                        rs, Exported) in
          match md.md_type with
-         | Mty_alias new_path ->
+         | Mty_static_alias new_path ->
              let md = Env.find_module new_path env in
              accum_aliases new_path md
                (if secretly_the_same_path env path new_path
@@ -448,7 +448,7 @@ let () =
                (if secretly_the_same_path env path new_path
                 then acc
                 else def :: acc)
-         | None | Some (Mty_alias _ | Mty_signature _ | Mty_functor _) ->
+         | None | Some (Mty_static_alias _ | Mty_signature _ | Mty_functor _) ->
              List.rev (def :: acc)
        in
        accum_defs path mtd []

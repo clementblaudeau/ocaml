@@ -1014,7 +1014,7 @@ let get_components c =
 
 let modtype_of_functor_appl fcomp p1 p2 =
   match fcomp.fcomp_res with
-  | Mty_alias _ as mty -> mty
+  | Mty_static_alias _ as mty -> mty
   | mty ->
       try
         Hashtbl.find fcomp.fcomp_subst_cache p2
@@ -1355,7 +1355,7 @@ let rec normalize_module_path lax env = function
 
 and expand_module_path lax env path =
   try match find_module_lazy ~alias:true path env with
-    {mdl_type=MtyL_alias path1} ->
+    {mdl_type=MtyL_static_alias path1} ->
       let path' = normalize_module_path lax env path1 in
       if lax || !Clflags.no_alias_deps then path' else
       let id = Path.head path in
@@ -1489,7 +1489,7 @@ let iter_env_cont = ref []
 let rec scrape_alias_for_visit env mty =
   let open Subst.Lazy in
   match mty with
-  | MtyL_alias path -> begin
+  | MtyL_static_alias path -> begin
       match path with
       | Pident id
         when Ident.persistent id
@@ -1613,7 +1613,7 @@ let rec scrape_alias env ?path mty =
       with Not_found ->
         mty
       end
-  | MtyL_alias path, _ ->
+  | MtyL_static_alias path, _ ->
       begin try
         scrape_alias env ((find_module_lazy path env).mdl_type) ~path
       with Not_found ->
@@ -1701,7 +1701,7 @@ let module_declaration_address env id presence md =
   | Mp_absent -> begin
       let open Subst.Lazy in
       match md.mdl_type with
-      | MtyL_alias path -> Lazy_backtrack.create (ModAlias {env; path})
+      | MtyL_static_alias path -> Lazy_backtrack.create (ModAlias {env; path})
       | _ -> assert false
     end
   | Mp_present ->
@@ -1815,7 +1815,7 @@ let rec components_of_module_maker
               match pres with
               | Mp_absent -> begin
                   match md.mdl_type with
-                  | MtyL_alias path ->
+                  | MtyL_static_alias path ->
                       Lazy_backtrack.create (ModAlias {env = !env; path})
                   | _ -> assert false
                 end
@@ -1890,7 +1890,7 @@ let rec components_of_module_maker
           fcomp_cache = Hashtbl.create 17;
           fcomp_subst_cache = Hashtbl.create 17 })
   | MtyL_ident _ -> Error No_components_abstract
-  | MtyL_alias p -> Error (No_components_alias p)
+  | MtyL_static_alias p -> Error (No_components_alias p)
 
 (* Insertion of bindings by identifier + path *)
 
@@ -2549,7 +2549,7 @@ let read_signature u =
   let md = Subst.Lazy.force_module_decl mda.mda_declaration in
   match md.md_type with
   | Mty_signature sg -> sg
-  | Mty_ident _ | Mty_functor _ | Mty_alias _ -> assert false
+  | Mty_ident _ | Mty_functor _ | Mty_static_alias _ -> assert false
 
 
 let unit_name_of_filename fn =

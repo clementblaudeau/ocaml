@@ -1612,7 +1612,7 @@ module Analyser =
       | Parsetree.Pmty_alias longident ->
           let name =
             match sig_module_type with
-              Types.Mty_alias path -> Name.from_path path
+              Types.Mty_static_alias path -> Name.from_path path
             | _ -> Name.from_longident longident.txt
           in
           (* Wrong naming... *)
@@ -1703,7 +1703,7 @@ module Analyser =
       | Parsetree.Pmty_alias _longident ->
           begin
             match sig_module_type with
-              Types.Mty_alias path ->
+              Types.Mty_static_alias path ->
                 let ln = !Odoc_global.library_namespace in
                 let alias_name = Odoc_env.full_module_name env
                     Name.(alias_unprefix ln @@ from_path path) in

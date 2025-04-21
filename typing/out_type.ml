@@ -357,7 +357,7 @@ let find_double_underscore s =
 
 let rec module_path_is_an_alias_of env path ~alias_of =
   match Env.find_module path env with
-  | { md_type = Mty_alias path'; _ } ->
+  | { md_type = Mty_static_alias path'; _ } ->
     Path.same path' alias_of ||
     module_path_is_an_alias_of env path' ~alias_of
   | _ -> false
@@ -1871,8 +1871,8 @@ let rec tree_of_modtype ?(ellipsis=false) = function
       in
       let res = wrap_env env (tree_of_modtype ~ellipsis) ty_res in
       Omty_functor (param, res)
-  | Mty_alias p ->
-      Omty_alias (tree_of_path (Some Module) p)
+  | Mty_static_alias p ->
+      Omty_static_alias (tree_of_path (Some Module) p)
 
 and tree_of_functor_parameter = function
   | Unit ->
