@@ -106,7 +106,8 @@ let rec module_path s path =
 let modtype_path s path =
       match Path.Map.find path s.modtypes with
       | Mty_ident p -> p
-      | Mty_alias _ | Mty_signature _ | Mty_functor _ as mty ->
+      | Mty_static_alias _
+      | Mty_signature _ | Mty_functor _ as mty ->
          raise (Module_type_path_substituted_away (path,mty))
       | exception Not_found ->
          match path with
@@ -535,7 +536,7 @@ module Lazy_types = struct
     | MtyL_ident of Path.t
     | MtyL_signature of signature
     | MtyL_functor of functor_parameter * modtype
-    | MtyL_alias of Path.t
+    | MtyL_static_alias of Path.t
 
   and modtype_declaration =
     {
@@ -649,7 +650,7 @@ and lazy_modtype = function
   | Mty_functor (Unit, mty) -> MtyL_functor (Unit, lazy_modtype mty)
   | Mty_functor (Named (id, arg), res) ->
      MtyL_functor (Named (id, lazy_modtype arg), lazy_modtype res)
-  | Mty_alias p -> MtyL_alias p
+  | Mty_static_alias p -> MtyL_static_alias p
 
 and subst_lazy_modtype scoping s = function
   | MtyL_ident p ->
@@ -675,8 +676,8 @@ and subst_lazy_modtype scoping s = function
       let id' = Ident.rename id in
       MtyL_functor(Named (Some id', (subst_lazy_modtype scoping s) arg),
                   subst_lazy_modtype scoping (add_module id (Pident id') s) res)
-  | MtyL_alias p ->
-      MtyL_alias (module_path s p)
+  | MtyL_static_alias p ->
+      MtyL_static_alias (module_path s p)
 
 and force_modtype = function
   | MtyL_ident p -> Mty_ident p
@@ -687,7 +688,7 @@ and force_modtype = function
        | Unit -> Unit
        | Named (id, mty) -> Named (id, force_modtype mty) in
      Mty_functor (param, force_modtype res)
-  | MtyL_alias p -> Mty_alias p
+  | MtyL_static_alias p -> Mty_static_alias p
 
 and lazy_modtype_decl mtd =
   let mtdl_type = Option.map lazy_modtype mtd.mtd_type in

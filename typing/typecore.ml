@@ -2289,7 +2289,7 @@ let add_module_variables env module_variables =
       in
       let pres =
         match modl.mod_type with
-        | Mty_alias _ -> Mp_absent
+        | Mty_static_alias _ -> Mp_absent
         | _ -> Mp_present
       in
       let md =

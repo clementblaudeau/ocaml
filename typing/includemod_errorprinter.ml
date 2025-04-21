@@ -154,7 +154,7 @@ module Runtime_coercion = struct
   (* Find module type at position [path] and convert the [coerce_pos] path to
      a [pos] path *)
   let rec find env ctx path (mt:Types.module_type) = match mt, path with
-    | (Mty_ident p | Mty_alias p), _ ->
+    | (Mty_ident p | Mty_static_alias p), _ ->
         begin match (Env.find_modtype p env).mtd_type with
         | None -> raise Not_found
         | Some mt -> find env ctx path mt
@@ -345,7 +345,7 @@ module With_shorthand = struct
   (** Shorthand computation from named item *)
   let modtype (r : _ named) = match r.item with
     | Types.Mty_ident _
-    | Types.Mty_alias _
+    | Types.Mty_static_alias _
     | Types.Mty_signature []
       -> Original r.item
     | Types.Mty_signature _ | Types.Mty_functor _
