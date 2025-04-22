@@ -701,6 +701,10 @@ and module_type i ppf x =
   match x.pmty_desc with
   | Pmty_ident li -> line i ppf "Pmty_ident %a\n" fmt_longident_loc li;
   | Pmty_alias li -> line i ppf "Pmty_alias %a\n" fmt_longident_loc li;
+  | Pmty_static_alias li ->
+      line i ppf "Pmty_static_alias %a\n" fmt_longident_loc li;
+  | Pmty_transparent li ->
+      line i ppf "Pmty_transparent %a\n" fmt_longident_loc li;
   | Pmty_signature (s) ->
       line i ppf "Pmty_signature\n";
       signature i ppf s;

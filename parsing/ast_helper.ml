@@ -252,6 +252,8 @@ module Mty = struct
 
   let ident ?loc ?attrs a = mk ?loc ?attrs (Pmty_ident a)
   let alias ?loc ?attrs a = mk ?loc ?attrs (Pmty_alias a)
+  let static_alias ?loc ?attrs a = mk ?loc ?attrs (Pmty_static_alias a)
+  let transparent ?loc ?attrs a = mk ?loc ?attrs (Pmty_transparent a)
   let signature ?loc ?attrs a = mk ?loc ?attrs (Pmty_signature a)
   let functor_ ?loc ?attrs a b = mk ?loc ?attrs (Pmty_functor (a, b))
   let with_ ?loc ?attrs a b = mk ?loc ?attrs (Pmty_with (a, b))

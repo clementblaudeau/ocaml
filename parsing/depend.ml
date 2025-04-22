@@ -322,6 +322,8 @@ and add_modtype bv mty =
   match mty.pmty_desc with
     Pmty_ident l -> add bv l
   | Pmty_alias l -> add_module_path bv l
+  | Pmty_static_alias l -> add_module_path bv l
+  | Pmty_transparent l -> add_module_path bv l
   | Pmty_signature s -> add_signature bv s
   | Pmty_functor(param, mty2) ->
       let bv =

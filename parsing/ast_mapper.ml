@@ -317,6 +317,8 @@ module MT = struct
     match desc with
     | Pmty_ident s -> ident ~loc ~attrs (map_loc_lid sub s)
     | Pmty_alias s -> alias ~loc ~attrs (map_loc_lid sub s)
+    | Pmty_static_alias s -> static_alias ~loc ~attrs (map_loc_lid sub s)
+    | Pmty_transparent s -> transparent ~loc ~attrs (map_loc_lid sub s)
     | Pmty_signature sg -> signature ~loc ~attrs (sub.signature sub sg)
     | Pmty_functor (param, mt) ->
         functor_ ~loc ~attrs

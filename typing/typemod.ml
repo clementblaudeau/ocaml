@@ -963,8 +963,8 @@ let rec approx_modtype env smty =
         Env.lookup_modtype_path ~use:false ~loc:smty.pmty_loc lid.txt env
       in
       Mty_ident path
-  | Pmty_alias lid ->
-      let path =
+  | Pmty_alias lid | Pmty_static_alias lid | Pmty_transparent lid ->
+     let path =
         Env.lookup_module_path ~use:false ~load:false
           ~loc:smty.pmty_loc lid.txt env
       in
@@ -1490,13 +1490,21 @@ and transl_modtype_aux env smty =
       mkmty (Tmty_ident (path, lid)) (Mty_ident path) env loc
         smty.pmty_attributes
   | Pmty_alias lid ->
-      let path = transl_module_alias loc env lid.txt in
-      mkmty (Tmty_static_alias (path, lid)) (Mty_static_alias path) env loc
-        smty.pmty_attributes
+     let path = transl_module_alias loc env lid.txt in
+     mkmty (Tmty_static_alias (path, lid)) (Mty_static_alias path) env loc
+       smty.pmty_attributes
+  | Pmty_static_alias lid ->
+     let path = transl_module_alias loc env lid.txt in
+     mkmty (Tmty_static_alias (path, lid)) (Mty_static_alias path) env loc
+       smty.pmty_attributes
+  | Pmty_transparent lid ->
+     let path = transl_module_alias loc env lid.txt in
+     mkmty (Tmty_transparent (path, lid)) (Mty_transparent path) env loc
+       smty.pmty_attributes
   | Pmty_signature ssg ->
-      let sg = transl_signature env ssg in
-      mkmty (Tmty_signature sg) (Mty_signature sg.sig_type) env loc
-        smty.pmty_attributes
+     let sg = transl_signature env ssg in
+     mkmty (Tmty_signature sg) (Mty_signature sg.sig_type) env loc
+       smty.pmty_attributes
   | Pmty_functor(sarg_opt, sres) ->
       let t_arg, ty_arg, newenv =
         match sarg_opt with
