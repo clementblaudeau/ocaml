@@ -84,6 +84,10 @@ type error =
 exception Error of Location.t * Env.t * error
 exception Error_forward of Location.error
 
+type typing_mode =
+  | Applicative
+  | Unrestricted (* used for toplevel and generative functors *)
+
 open Typedtree
 
 let rec path_concat head p =
@@ -2405,11 +2409,33 @@ let check_package_closed ~loc ~env ~typ fl =
 
 let not_principal msg = Warnings.Not_principal (Format_doc.Doc.msg msg)
 
-let rec type_module ?(alias=false) ~strengthen ~funct_body anchor env smod =
-  Builtin_attributes.warning_scope smod.pmod_attributes
-    (fun () -> type_module_aux ~alias ~strengthen ~funct_body anchor env smod)
 
-and type_module_aux ~alias ~strengthen ~funct_body anchor env smod =
+(**
+  [type_module] infers the type of a module expression.
+
+  [~alias] is set when returning an alias signature is authorized, that is, when
+  typing a module field inside a structure
+
+  [~strengthen] indicates if the resulting signature should be strengthened
+
+  [~mode] is set to [Applicative] if typing is done inside an applicative
+  functor (to prevent unpacking of first class modules). Both the top-level and
+  the body of a generative functor are typed with the (unrestricted)
+  [Unrestricted] mode
+
+  [anchor] optional path to the current expression, only used
+  inside recursive modules
+
+  [env] typing environment
+
+  [smod] module expression
+*)
+
+let rec type_module ?(alias=false) ~strengthen ~mode anchor env smod =
+  Builtin_attributes.warning_scope smod.pmod_attributes
+    (fun () -> type_module_aux ~alias ~strengthen ~mode anchor env smod)
+
+and type_module_aux ~alias ~strengthen ~mode anchor env smod =
   match smod.pmod_desc with
     Pmod_ident lid ->
       let static_alias_flag, dynamic_alias_flag =
@@ -2460,7 +2486,7 @@ and type_module_aux ~alias ~strengthen ~funct_body anchor env smod =
           pre_md mty, path_shape
   | Pmod_structure sstr ->
       let (str, sg, names, shape, _finalenv) =
-        type_structure ~funct_body anchor env sstr in
+        type_structure ~mode anchor env sstr in
       let md =
         { mod_desc = Tmod_structure str;
           mod_type = Mty_signature sg;
@@ -2473,10 +2499,10 @@ and type_module_aux ~alias ~strengthen ~funct_body anchor env smod =
       wrap_constraint_with_shape env false md
         (Mty_signature sg') shape Tmodtype_implicit
   | Pmod_functor(arg_opt, sbody) ->
-      let t_arg, ty_arg, newenv, funct_shape_param, funct_body =
+      let t_arg, ty_arg, newenv, funct_shape_param, mode =
         match arg_opt with
         | Unit ->
-          Unit, Types.Unit, env, Shape.for_unnamed_functor_param, false
+          Unit, Types.Unit, env, Shape.for_unnamed_functor_param, Unrestricted
         | Named (param, smty) ->
           let mty = transl_modtype_functor_arg env smty in
           let scope = Ctype.create_scope () in
@@ -2500,10 +2526,10 @@ and type_module_aux ~alias ~strengthen ~funct_body anchor env smod =
               Some id, newenv, id
           in
           Named (id, param, mty), Types.Named (id, mty.mty_type), newenv,
-          var, true
+          var, Applicative
       in
       let body, body_shape =
-        type_module ~strengthen:true ~funct_body None newenv sbody
+        type_module ~strengthen:true ~mode None newenv sbody
       in
       { mod_desc = Tmod_functor(t_arg, body);
         mod_type = Mty_functor(ty_arg, body.mod_type);
@@ -2512,10 +2538,10 @@ and type_module_aux ~alias ~strengthen ~funct_body anchor env smod =
         mod_loc = smod.pmod_loc },
       Shape.abs funct_shape_param body_shape
   | Pmod_apply _ | Pmod_apply_unit _ ->
-      type_application smod.pmod_loc ~strengthen ~funct_body env smod
+      type_application smod.pmod_loc ~strengthen ~mode env smod
   | Pmod_constraint(sarg, smty) ->
       let arg, arg_shape =
-        type_module ~alias ~strengthen:true ~funct_body anchor env sarg
+        type_module ~alias ~strengthen:true ~mode anchor env sarg
       in
       let mty = transl_modtype env smty in
       let md, final_shape =
@@ -2549,7 +2575,7 @@ and type_module_aux ~alias ~strengthen ~funct_body anchor env smod =
         | _ ->
             raise (Error(smod.pmod_loc, env, Not_a_packed_module exp.exp_type))
       in
-      if funct_body && Mtype.contains_type env mty then
+      if mode=Applicative && Mtype.contains_type env mty then
         raise (Error (smod.pmod_loc, env, Not_allowed_in_functor_body));
       { mod_desc = Tmod_unpack(exp, mty);
         mod_type = mty;
@@ -2560,12 +2586,12 @@ and type_module_aux ~alias ~strengthen ~funct_body anchor env smod =
   | Pmod_extension ext ->
       raise (Error_forward (Builtin_attributes.error_of_extension ext))
 
-and type_application loc ~strengthen ~funct_body env smod =
-  let rec extract_application ~funct_body env sargs smod =
+and type_application loc ~strengthen ~mode env smod =
+  let rec extract_application ~mode env sargs smod =
     match smod.pmod_desc with
     | Pmod_apply (f, sarg) ->
         let arg, shape =
-          type_module ~strengthen:true ~funct_body None env sarg
+          type_module ~strengthen:true ~mode None env sarg
         in
         let summary = {
           loc = smod.pmod_loc;
@@ -2578,7 +2604,7 @@ and type_application loc ~strengthen ~funct_body env smod =
             shape;
           }
         } in
-        extract_application ~funct_body env (summary::sargs) f
+        extract_application ~mode env (summary::sargs) f
     | Pmod_apply_unit f ->
         let summary = {
           loc = smod.pmod_loc;
@@ -2586,24 +2612,24 @@ and type_application loc ~strengthen ~funct_body env smod =
           f_loc = f.pmod_loc;
           arg = None
         } in
-        extract_application ~funct_body env (summary::sargs) f
+        extract_application ~mode env (summary::sargs) f
     | _ -> smod, sargs
   in
-  let sfunct, args = extract_application ~funct_body env [] smod in
+  let sfunct, args = extract_application ~mode env [] smod in
   let funct, funct_shape =
     let has_path { arg } = match arg with
       | None | Some { path = None } -> false
       | Some { path = Some _ } -> true
     in
     let strengthen = strengthen && List.for_all has_path args in
-    type_module ~strengthen ~funct_body None env sfunct
+    type_module ~strengthen ~mode None env sfunct
   in
   List.fold_left
-    (type_one_application ~ctx:(loc, sfunct, funct, args) funct_body env)
+    (type_one_application ~ctx:(loc, sfunct, funct, args) ~mode env)
     (funct, funct_shape) args
 
 and type_one_application ~ctx:(apply_loc,sfunct,md_f,args)
-    funct_body env (funct, funct_shape) app_view =
+    ~mode env (funct, funct_shape) app_view =
   match Env.scrape_alias env funct.mod_type with
   | Mty_functor (Unit, mty_res) ->
       begin match app_view.arg with
@@ -2620,7 +2646,7 @@ and type_one_application ~ctx:(apply_loc,sfunct,md_f,args)
           else
             raise (Error (app_view.f_loc, env, Apply_generative));
       end;
-      if funct_body && Mtype.contains_type env funct.mod_type then
+      if mode=Applicative && Mtype.contains_type env funct.mod_type then
         raise (Error (apply_loc, env, Not_allowed_in_functor_body));
       { mod_desc = Tmod_apply_unit funct;
         mod_type = mty_res;
@@ -2708,13 +2734,13 @@ and type_one_application ~ctx:(apply_loc,sfunct,md_f,args)
       raise(Includemod.Apply_error {loc=apply_loc;env;app_name;mty_f;args})
   | Mty_transparent _ -> failwith "TODO: transparent ascription step 1"
 
-and type_open_decl ?used_slot ?toplevel ~funct_body names env sod =
+and type_open_decl ?used_slot ?toplevel ~mode names env sod =
   Builtin_attributes.warning_scope sod.popen_attributes
     (fun () ->
-       type_open_decl_aux ?used_slot ?toplevel ~funct_body names env sod
+       type_open_decl_aux ?used_slot ?toplevel ~mode names env sod
     )
 
-and type_open_decl_aux ?used_slot ?toplevel ~funct_body names env od =
+and type_open_decl_aux ?used_slot ?toplevel ~mode names env od =
   let loc = od.popen_loc in
   match od.popen_expr.pmod_desc with
   | Pmod_ident lid ->
@@ -2738,7 +2764,7 @@ and type_open_decl_aux ?used_slot ?toplevel ~funct_body names env od =
     open_descr, [], newenv
   | _ ->
     let md, mod_shape =
-      type_module ~strengthen:true ~funct_body None env od.popen_expr
+      type_module ~strengthen:true ~mode None env od.popen_expr
     in
     let scope = Ctype.create_scope () in
     let sg, newenv =
@@ -2774,7 +2800,7 @@ and type_open_decl_aux ?used_slot ?toplevel ~funct_body names env od =
     } in
     open_descr, sg, newenv
 
-and type_structure ?(toplevel = false) ~funct_body anchor env sstr =
+and type_structure ?(toplevel = false) ~mode anchor env sstr =
   let names = Signature_names.create () in
   let rec type_struct env shape_map sstr =
     match sstr with
@@ -2782,7 +2808,7 @@ and type_structure ?(toplevel = false) ~funct_body anchor env sstr =
     | pstr :: srem ->
         let previous_saved_types = Cmt_format.get_saved_types () in
         let str, sg, shape_map, new_env =
-          type_str_item ~names ~toplevel ~funct_body anchor env shape_map pstr
+          type_str_item ~names ~toplevel ~mode anchor env shape_map pstr
         in
         Cmt_format.set_saved_types (Cmt_format.Partial_structure_item str
                                     :: previous_saved_types);
@@ -2804,7 +2830,7 @@ and type_structure ?(toplevel = false) ~funct_body anchor env sstr =
   if toplevel then run ()
   else Builtin_attributes.warning_scope [] run
 
-and type_str_item ~names ~toplevel ~funct_body anchor env shape_map
+and type_str_item ~names ~toplevel ~mode anchor env shape_map
     {pstr_loc = loc; pstr_desc = desc} =
   let desc, sg, shape_map, new_env =
     match desc with
@@ -2909,7 +2935,7 @@ and type_str_item ~names ~toplevel ~funct_body anchor env shape_map
         let modl, md_shape =
           Builtin_attributes.warning_scope attrs
             (fun () ->
-               type_module ~alias:true ~strengthen:true ~funct_body
+               type_module ~alias:true ~strengthen:true ~mode
                  (anchor_submodule name.txt anchor) env smodl
             )
         in
@@ -2983,7 +3009,7 @@ and type_str_item ~names ~toplevel ~funct_body anchor env shape_map
                let modl, shape =
                  Builtin_attributes.warning_scope attrs
                    (fun () ->
-                      type_module ~strengthen:true ~funct_body
+                      type_module ~strengthen:true ~mode
                         (anchor_recmodule id) newenv smodl
                    )
                in
@@ -3045,7 +3071,7 @@ and type_str_item ~names ~toplevel ~funct_body anchor env shape_map
         Tstr_modtype mtd, [Sig_modtype (id, decl, Exported)], map, newenv
     | Pstr_open sod ->
         let (od, sg, newenv) =
-          type_open_decl ~toplevel ~funct_body names env sod
+          type_open_decl ~toplevel ~mode names env sod
         in
         Tstr_open od, sg, shape_map, newenv
     | Pstr_class cl ->
@@ -3111,7 +3137,7 @@ and type_str_item ~names ~toplevel ~funct_body anchor env shape_map
         let smodl = sincl.pincl_mod in
         let modl, modl_shape =
           Builtin_attributes.warning_scope sincl.pincl_attributes
-            (fun () -> type_module ~strengthen:true ~funct_body None env smodl)
+            (fun () -> type_module ~strengthen:true ~mode None env smodl)
         in
         let scope = Ctype.create_scope () in
         (* Rename all identifiers bound by this signature to avoid clashes *)
@@ -3138,14 +3164,16 @@ and type_str_item ~names ~toplevel ~funct_body anchor env shape_map
 
 let type_toplevel_phrase env s =
   Env.reset_required_globals ();
-  type_structure ~toplevel:true ~funct_body:false None env s
+  type_structure ~toplevel:true ~mode:Unrestricted None env s
+
+(* Exported functions with preset parameters *)
 
 let type_module_alias =
-  type_module ~alias:true ~strengthen:true ~funct_body:false None
+  type_module ~alias:true ~strengthen:true ~mode:Unrestricted None
 let type_module =
-  type_module ~strengthen:true ~funct_body:false None
+  type_module ~strengthen:true ~mode:Unrestricted None
 let type_structure =
-  type_structure ~funct_body:false None
+  type_structure ~mode:Unrestricted None
 
 (* Normalize types in a signature *)
 
@@ -3292,7 +3320,7 @@ let type_package env m pack =
 (* Fill in the forward declarations *)
 
 let type_open_decl ?used_slot env od =
-  type_open_decl ?used_slot ?toplevel:None ~funct_body:false
+  type_open_decl ?used_slot ?toplevel:None ~mode:Unrestricted
     (Signature_names.create ()) env od
 
 let type_open_descr ?used_slot env od =
@@ -3301,7 +3329,7 @@ let type_open_descr ?used_slot env od =
 let type_str_item env pstri =
   let si, _, _, new_env =
     type_str_item
-      ~toplevel:false ~funct_body:false ~names:(Signature_names.create ())
+      ~toplevel:false ~mode:Unrestricted ~names:(Signature_names.create ())
       None env Shape.Map.empty pstri
   in
   si, new_env
