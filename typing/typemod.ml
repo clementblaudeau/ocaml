@@ -2275,41 +2275,40 @@ and type_module_aux ~alias ~strengthen ~mode anchor env smod =
       let path =
         Env.lookup_module_path ~load:(not alias) ~loc:smod.pmod_loc lid.txt env
       in
-      let md = { mod_desc = Tmod_ident (path, lid);
-                 mod_type = Mty_alias path;
-                 mod_env = env;
-                 mod_attributes = smod.pmod_attributes;
-                 mod_loc = smod.pmod_loc } in
       let aliasable = not (Env.is_functor_arg path env) in
-      let shape =
+      let path_shape =
         Env.shape_of_path ~namespace:Shape.Sig_component_kind.Module env path
       in
-      let shape = if alias && aliasable then Shape.alias shape else shape in
-      let md =
-        if alias && aliasable then
-          (Env.add_required_global (Path.head path); md)
-        else begin
-          let mty =
-            if strengthen then
-              Env.find_strengthened_module ~aliasable path env
-            else
-              (Env.find_module path env).md_type
-          in
-          match mty with
-          | Mty_alias p1 when not alias ->
-              let p1 = Env.normalize_module_path (Some smod.pmod_loc) env p1 in
-              let mty = Includemod.expand_module_alias
-                  ~strengthen env p1 in
-              { md with
-                mod_desc =
-                  Tmod_constraint (md, mty, Tmodtype_implicit,
-                                   Tcoerce_alias (env, path, Tcoerce_none));
-                mod_type = mty }
-          | mty ->
-              { md with mod_type = mty }
-        end
+      let alias_md = {
+        mod_desc = Tmod_ident (path, lid);
+        mod_type = Mty_alias path;
+        mod_env = env;
+        mod_attributes = smod.pmod_attributes;
+        mod_loc = smod.pmod_loc }
       in
-      md, shape
+      if alias && aliasable then
+         let () = Env.add_required_global (Path.head path) in
+         alias_md, (Shape.alias path_shape)
+      else begin
+        let path_mty =
+          if strengthen then
+            Env.find_strengthened_module ~aliasable path env
+          else
+            (Env.find_module path env).md_type
+        in
+        match path_mty with
+        | Mty_alias path' when (not alias) ->
+            let norm_path' =
+              Env.normalize_module_path (Some smod.pmod_loc) env path' in
+            let strengthened_mty =
+              Includemod.expand_module_alias ~strengthen env norm_path' in
+            { alias_md with
+              mod_desc =
+                Tmod_constraint (alias_md, strengthened_mty, Tmodtype_implicit,
+                                 Tcoerce_alias (env, path, Tcoerce_none));
+              mod_type = strengthened_mty }, path_shape
+        | _ -> { alias_md with mod_type = path_mty }, path_shape
+      end
   | Pmod_structure sstr ->
       let (str, sg, names, shape, _finalenv) =
         type_structure ~mode anchor env sstr in
