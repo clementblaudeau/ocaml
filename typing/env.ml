@@ -1706,16 +1706,10 @@ let extension_declaration_address (_ : t) id (_ : extension_constructor) =
 let class_declaration_address (_ : t) id (_ : class_declaration) =
   Lazy_backtrack.create_forced (Aident id)
 
-let module_declaration_address env id presence md =
-  match presence with
-  | Mp_absent -> begin
-      let open Subst.Lazy in
-      match md.mdl_type with
-      | MtyL_static_alias path -> Lazy_backtrack.create (ModAlias {env; path})
-      | _ -> assert false
-    end
-  | Mp_present ->
-      Lazy_backtrack.create_forced (Aident id)
+let module_declaration_address env id (md: Subst.Lazy.module_decl) =
+  match md.mdl_type with
+  | MtyL_static_alias path -> Lazy_backtrack.create (ModAlias {env; path})
+  | _ -> Lazy_backtrack.create_forced (Aident id)
 
 let rec components_of_module_maker
           {cm_env; cm_prefixing_subst;
@@ -1822,14 +1816,10 @@ let rec components_of_module_maker
                 (Subst.Rescope (Path.scope cm_path)) sub md
             in
             let addr =
-              match pres with
-              | Mp_absent -> begin
-                  match md.mdl_type with
-                  | MtyL_static_alias path ->
-                      Lazy_backtrack.create (ModAlias {env = !env; path})
-                  | _ -> assert false
-                end
-              | Mp_present -> next_address ()
+              match md.mdl_type with
+              | MtyL_static_alias path ->
+                  Lazy_backtrack.create (ModAlias {env = !env; path})
+              | _ -> next_address ()
             in
             let alerts =
               Builtin_attributes.alerts_of_attrs md.mdl_attributes
@@ -2238,13 +2228,13 @@ and add_module_declaration ?(noalias=false) ?shape ~check id presence md env =
       Some (fun s -> Warnings.Unused_module s)
   in
   let md = Subst.Lazy.of_module_decl md in
-  let addr = module_declaration_address env id presence md in
+  let addr = module_declaration_address env id md in
   let shape = shape_or_leaf md.mdl_uid shape in
   let env = store_module ~check id addr presence md shape env in
   if noalias then mark_not_aliasable id env else env
 
 and add_module_declaration_lazy ~update_summary id presence md env =
-  let addr = module_declaration_address env id presence md in
+  let addr = module_declaration_address env id md in
   let shape = Shape.leaf md.Subst.Lazy.mdl_uid in
   let env =
     store_module ~update_summary ~check:None id addr presence md shape env

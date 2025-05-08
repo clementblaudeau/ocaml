@@ -430,12 +430,23 @@ let item_visibility = function
   | Sig_class (_, _, _, vis)
   | Sig_class_type (_, _, _, vis) -> vis
 
+let mty_is_present mty =
+  match mty with
+  | Mty_static_alias _ -> false
+  | _ -> true
+
+let mty_is_absent mty = not (mty_is_present mty)
+
+let md_is_present { md_type } = mty_is_present md_type
+
+let md_is_absent md = not (md_is_present md)
+
 let rec bound_value_identifiers = function
     [] -> []
   | Sig_value(id, {val_kind = Val_reg}, _) :: rem ->
       id :: bound_value_identifiers rem
   | Sig_typext(id, _, _, _) :: rem -> id :: bound_value_identifiers rem
-  | Sig_module(id, Mp_present, _, _, _) :: rem ->
+  | Sig_module(id, _, md, _, _) :: rem when (md_is_present md) ->
       id :: bound_value_identifiers rem
   | Sig_class(id, _, _, _) :: rem -> id :: bound_value_identifiers rem
   | _ :: rem -> bound_value_identifiers rem
