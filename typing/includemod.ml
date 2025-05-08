@@ -356,12 +356,12 @@ let item_ident_name = function
 let is_runtime_component = function
   | Sig_value(_,{val_kind = Val_prim _}, _)
   | Sig_type(_,_,_,_)
-  | Sig_module(_,Mp_absent,_,_,_)
+  | Sig_module(_,_,{md_type=Mty_static_alias _},_,_)
   | Sig_modtype(_,_,_)
   | Sig_class_type(_,_,_,_) -> false
   | Sig_value(_,_,_)
   | Sig_typext(_,_,_,_)
-  | Sig_module(_,Mp_present,_,_,_)
+  | Sig_module(_,_,_,_,_)
   | Sig_class(_,_,_,_) -> true
 
 (* Print a coercion *)
@@ -714,7 +714,7 @@ and signatures ~core ~direction ~loc env subst sig1 sig2 mod_shape =
   let (id_pos_list,_) =
     List.fold_left
       (fun (l,pos) -> function
-          Sig_module (id, Mp_present, _, _, _) ->
+          Sig_module (id, _, md, _, _) when (Types.md_is_present md) ->
             ((id,pos,Tcoerce_none)::l , pos+1)
         | item -> (l, if is_runtime_component item then pos+1 else pos))
       ([], 0) sig1 in
@@ -859,7 +859,7 @@ and signature_components ~core ~direction ~loc old_env env subst
               Shape.Map.add_extcons_proj shape_map id1 orig_shape
             in
             id1, item, (ext1.ext_uid, ext2.ext_uid), shape_map, true
-        | Sig_module(id1, pres1, mty1, _, _), Sig_module(_, pres2, mty2, _, _)
+        | Sig_module(id1, _, mty1, _, _), Sig_module(_, _, mty2, _, _)
           -> begin
               let orig_shape =
                 Shape.(proj orig_shape (Item.module_ id1))
@@ -882,12 +882,11 @@ and signature_components ~core ~direction ~loc old_env env subst
                     Shape.Map.add_module shape_map id1 orig_shape
               in
               let present_at_runtime, item =
-                match pres1, pres2, mty1.md_type with
-                | Mp_present, Mp_present, _ -> true, item
-                | _, Mp_absent, _ -> false, item
-                | Mp_absent, Mp_present, Mty_static_alias p1 ->
+                match mty1.md_type, mty2.md_type with
+                | Mty_static_alias _, Mty_static_alias _ -> false, item
+                | Mty_static_alias p1, _ ->
                     true, Result.map (fun i -> Tcoerce_alias (env, p1, i)) item
-                | Mp_absent, Mp_present, _ -> assert false
+                | _, _ -> true, item
               in
               let item = mark_error_as_unrecoverable item in
               let paired_uids = (mty1.md_uid, mty2.md_uid) in

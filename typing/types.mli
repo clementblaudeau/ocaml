@@ -727,6 +727,17 @@ val bound_value_identifiers: signature -> Ident.t list
 
 val signature_item_id : signature_item -> Ident.t
 
+(** Indicates if a module declaration or a module type is *absent* or
+    *present*. Only static aliases are absent, all other module types are
+    present *)
+val md_is_present : module_declaration -> bool
+
+val md_is_absent : module_declaration -> bool
+
+val mty_is_present : module_type -> bool
+
+val mty_is_absent : module_type -> bool
+
 (**** Utilities for backtracking ****)
 
 type snapshot

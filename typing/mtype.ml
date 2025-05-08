@@ -342,17 +342,13 @@ and type_paths_sig env p sg =
       type_paths_sig env p rem
 
 
-let rec no_code_needed_mod env pres mty =
-  match pres with
-  | Mp_absent -> true
-  | Mp_present -> begin
-      match scrape env mty with
-        Mty_ident _ -> false
-      | Mty_signature sg -> no_code_needed_sig env sg
-      | Mty_functor _ -> false
-      | Mty_static_alias _ -> false
-      | Mty_transparent _ -> false
-    end
+let rec no_code_needed env mty =
+  match scrape env mty with
+    Mty_ident _ -> false
+  | Mty_static_alias _ -> true
+  | Mty_signature sg -> no_code_needed_sig env sg
+  | Mty_functor _ -> false
+  | Mty_transparent _ -> false
 
 and no_code_needed_sig env sg =
   match sg with
@@ -362,16 +358,14 @@ and no_code_needed_sig env sg =
       | Val_prim _ -> no_code_needed_sig env rem
       | _ -> false
       end
-  | Sig_module(id, pres, md, _, _) :: rem ->
-      no_code_needed_mod env pres md.md_type &&
+  | Sig_module(id, _, ({md_type = Mty_static_alias _} as md), _, _) :: rem ->
       no_code_needed_sig
-        (Env.add_module_declaration ~check:false id pres md env) rem
+        (Env.add_module_declaration ~check:false id Mp_absent md env) rem
+  | Sig_module(_, _, _, _, _) :: _ -> false
   | (Sig_type _ | Sig_modtype _ | Sig_class_type _) :: rem ->
       no_code_needed_sig env rem
   | (Sig_typext _ | Sig_class _) :: _ ->
       false
-
-let no_code_needed env mty = no_code_needed_mod env Mp_present mty
 
 (* Check whether a module type may return types *)
 
