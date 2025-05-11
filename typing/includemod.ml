@@ -435,7 +435,11 @@ let retrieve_functor_params env mty =
         | Ok mty ->  retrieve_functor_params before env mty
         | Error _ -> { Error.params = List.rev before; res }
         end
-    | Mty_transparent _ -> failwith "TODO: transparent ascription step 1"
+    | Mty_transparent p as res ->
+        begin match expand_module_alias ~strengthen:false env p with
+        | Ok mty ->  retrieve_functor_params before env mty
+        | Error _ -> { Error.params = List.rev before; res }
+        end
     | Mty_functor (p, res) -> retrieve_functor_params (p :: before) env res
     | Mty_signature _ as res -> { Error.params = List.rev before; res }
   in
@@ -514,28 +518,38 @@ let rec modtypes ~core ~direction ~loc env subst mty1 mty2 shape =
 
 and try_modtypes ~core ~direction ~loc env subst mty1 mty2 orig_shape =
   match mty1, mty2 with
-  | (Mty_static_alias p1, Mty_static_alias p2) ->
-      if (equal_module_paths env p1 subst p2) then
-          Ok (Tcoerce_none, orig_shape)
-      else
-        Error Error.(Mt_core Incompatible_aliases)
-  | (Mty_static_alias p1, _) -> begin
-      match
-        Env.normalize_module_path (Some Location.none) env p1
-      with
-      | exception Env.Error (Env.Missing_module (_, _, path)) ->
-          Error Error.(Mt_core(Unbound_module_path path))
-      | p1 ->
-          begin match expand_module_alias ~strengthen:false env p1 with
-          | Error e -> Error (Error.Mt_core e)
-          | Ok mty1 ->
-              match strengthened_modtypes ~core ~direction ~loc ~aliasable:true
-                      env subst mty1 p1 mty2 orig_shape
-              with
-              | Ok _ as x -> x
-              | Error reason -> Error (Error.After_alias_expansion reason)
-          end
+  (* Equivalent aliases *)
+  | Mty_transparent p1, Mty_transparent p2
+  | Mty_static_alias p1, Mty_static_alias p2
+    when (equal_module_paths env p1 subst p2) ->
+     Ok (Tcoerce_none, orig_shape)
+
+  (* Dynamic aliases are subtype of static ones *)
+  | Mty_transparent p1, Mty_static_alias p2
+    when (equal_module_paths env p1 subst p2) ->
+     Ok (Tcoerce_none, orig_shape)
+
+  (* Aliases [module X = P1] can be downgraded to the (strengthened) signature
+     of [P1], dropping the aliasing information *)
+  | Mty_static_alias p1, _
+  | Mty_transparent p1, _ -> begin
+      begin match expand_module_alias ~strengthen:false env p1 with
+      | Error e -> Error (Error.Mt_core e)
+      | Ok mty1 ->
+         match strengthened_modtypes ~core ~direction ~loc ~aliasable:true
+                 env subst mty1 p1 mty2 orig_shape
+         with
+         | Ok _ as x -> x
+         | Error reason -> begin
+             match mty2 with
+             | Mty_static_alias _ | Mty_transparent _ ->
+                Error Error.(Mt_core Incompatible_aliases)
+             | _ ->
+                Error (Error.After_alias_expansion reason)
+           end
+      end
     end
+
   | (Mty_ident p1, Mty_ident p2) ->
       let p1 = Env.normalize_modtype_path env p1 in
       let p2 = Env.normalize_modtype_path env (Subst.modtype_path subst p2) in
@@ -631,7 +645,8 @@ and try_modtypes ~core ~direction ~loc env subst mty1 mty2 orig_shape =
        (retrieve_functor_params env mty2)
   | _, Mty_static_alias _ ->
       Error (Error.Mt_core Error.Not_an_alias)
-  | _, _ -> failwith "TODO: transparent ascription step 1"
+  | _, Mty_transparent _ ->
+      Error (Error.Mt_core Error.Not_an_alias)
 
 (* Functor parameters *)
 

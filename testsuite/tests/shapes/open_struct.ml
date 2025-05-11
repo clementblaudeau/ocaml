@@ -101,7 +101,7 @@ include Test
                                };
                  };
  }
-module M = Test.M
+module M = Test.M [@@dynamic_alias]
 |}]
 
 module N = M
