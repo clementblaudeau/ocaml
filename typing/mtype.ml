@@ -495,6 +495,14 @@ let rec remove_aliases_mty env args pres mty =
           args'.modified <- true;
           remove_aliases_mty env args' Mp_present mty'
         end
+    | Mty_transparent _ ->
+        let mty' = Env.scrape_alias env mty in
+        if mty' = mty then begin
+          pres, mty
+        end else begin
+          args'.modified <- true;
+          remove_aliases_mty env args' Mp_present mty'
+        end
     | mty ->
         Mp_present, mty
   in

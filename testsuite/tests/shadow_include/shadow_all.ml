@@ -361,11 +361,11 @@ end
 [%%expect{|
 module Module :
   sig
-    module O = N.M
+    module O = N.M [@@dynamic_alias]
     type t = N.t
     val unit : unit
     external e : unit -> unit = "%identity"
-    module M = N.M
+    module M = N.M [@@dynamic_alias]
     module type T = N.T
     exception E
     type ext = N.ext = ..
