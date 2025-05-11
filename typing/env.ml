@@ -1623,6 +1623,14 @@ let rec scrape_alias env ?path mty =
           (Warnings.No_cmi_file (Path.name path));*)
         mty
       end
+  | MtyL_transparent path, _ ->
+      begin try
+        scrape_alias env ((find_module_lazy path env).mdl_type) ~path
+      with Not_found ->
+        (*Location.prerr_warning Location.none
+          (Warnings.No_cmi_file (Path.name path));*)
+        mty
+      end
   | mty, Some path ->
       !strengthen ~aliasable:true env mty path
   | _ -> mty

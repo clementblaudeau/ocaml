@@ -60,7 +60,7 @@ module C3 :
     val escaped : char -> string
     val compare : t -> t -> int
     val equal : t -> t -> bool
-    module Ascii = Char.Ascii
+    module Ascii = Char.Ascii [@@dynamic_alias]
     val lowercase_ascii : char -> char
     val uppercase_ascii : char -> char
     val seeded_hash : int -> t -> int
@@ -90,7 +90,7 @@ module F :
       val escaped : char -> string
       val compare : t -> t -> int
       val equal : t -> t -> bool
-      module Ascii = Char.Ascii
+      module Ascii = Char.Ascii [@@dynamic_alias]
       val lowercase_ascii : char -> char
       val uppercase_ascii : char -> char
       val seeded_hash : int -> t -> int
@@ -105,7 +105,7 @@ module C4 :
     val escaped : char -> string
     val compare : t -> t -> int
     val equal : t -> t -> bool
-    module Ascii = Char.Ascii
+    module Ascii = Char.Ascii [@@dynamic_alias]
     val lowercase_ascii : char -> char
     val uppercase_ascii : char -> char
     val seeded_hash : int -> t -> int
@@ -142,7 +142,7 @@ M3'.N'.x;;
 [%%expect{|
 module M'' : sig module N' : sig val x : int end end
 - : int = 1
-module M2 : sig module N = M'.N module N' = N end
+module M2 : sig module N = M'.N [@@dynamic_alias]  module N' = N end
 module M3 : sig module N' : sig val x : int end end
 - : int = 1
 module M3' : sig module N' : sig val x : int end end
@@ -413,7 +413,7 @@ let f (x : t) : T.t = x ;;
 [%%expect{|
 module F : (M : sig end) -> sig type t end
 module T : sig module M : sig end type t = F(M).t end
-module M = T.M
+module M = T.M [@@dynamic_alias]
 type t = F(M).t
 val f : t -> T.t = <fun>
 |}];;
@@ -519,7 +519,7 @@ let f (x : t) : T.t = x
 [%%expect {|
 module F : (M : sig end) -> sig type t end
 module T : sig module M : sig end type t = F(M).t end
-module M = T.M
+module M = T.M [@@dynamic_alias]
 type t = F(M).t
 val f : t -> T.t = <fun>
 |}]
@@ -936,4 +936,15 @@ module X3 : sig module Inner = X1 end = struct module Inner = X1 end
 module rec X1 : sig end
 and X2 : sig end
 module X3 : sig module Inner = X1 end
+|}]
+
+
+(* Static aliases remain static through strengthening *)
+module X0 = struct end
+module M = struct module X = X0 (* static alias *) end
+module M' = struct include M end
+[%%expect {|
+module X0 : sig end
+module M : sig module X = X0 end
+module M' : sig module X = X0 end
 |}]
