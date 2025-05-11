@@ -123,7 +123,7 @@ and strengthen_lazy_decl ~aliasable env md p =
   let open Subst.Lazy in
   match md.mdl_type with
   | MtyL_static_alias _ -> md
-  | _ when aliasable -> {md with mdl_type = MtyL_static_alias p}
+  | _ when aliasable -> {md with mdl_type = MtyL_transparent p}
   | mty -> {md with mdl_type = strengthen_lazy ~aliasable env mty p}
 
 let () = Env.strengthen := strengthen_lazy
@@ -140,7 +140,8 @@ let strengthen_decl ~aliasable env md p =
 let rec make_aliases_absent pres mty =
   match mty with
   | Mty_static_alias _ -> Mp_absent, mty
-  | Mty_transparent _ -> failwith "TODO: transparent ascription step 1"
+  (* to be changed once transparent signatures contain functor applications *)
+  | Mty_transparent p -> Mp_absent, Mty_static_alias p
   | Mty_signature sg ->
       pres, Mty_signature(make_aliases_absent_sig sg)
   | Mty_functor(arg, res) ->
@@ -204,7 +205,17 @@ let rec nondep_mty_with_presence env va ids pres mty =
           nondep_mty_with_presence env va ids Mp_present expansion.md_type
       | None -> pres, mty
       end
-  | Mty_transparent _p -> failwith "TODO: transparent ascription step 1"
+  | Mty_transparent p ->
+      begin match Path.find_free_opt ids p with
+      | Some id ->
+          let expansion =
+            try Env.find_module p env
+            with Not_found ->
+              raise (Ctype.Nondep_cannot_erase id)
+          in
+          nondep_mty_with_presence env va ids Mp_present expansion.md_type
+      | None -> pres, mty
+      end
   | Mty_signature sg ->
       let mty = Mty_signature(nondep_sig env va ids sg) in
       pres, mty
@@ -315,7 +326,7 @@ let rec type_paths env p mty =
   match scrape env mty with
     Mty_ident _ -> []
   | Mty_static_alias _ -> []
-  | Mty_transparent _ -> failwith "TODO: transparent ascription step 1"
+  | Mty_transparent _ -> []
   | Mty_signature sg -> type_paths_sig env p sg
   | Mty_functor _ -> []
 
@@ -343,7 +354,7 @@ let rec no_code_needed_mod env pres mty =
       | Mty_signature sg -> no_code_needed_sig env sg
       | Mty_functor _ -> false
       | Mty_static_alias _ -> false
-      | Mty_transparent _ -> failwith "TODO: transparent ascription step 1"
+      | Mty_transparent _ -> false
     end
 
 and no_code_needed_sig env sg =

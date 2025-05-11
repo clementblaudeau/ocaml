@@ -29,6 +29,16 @@ module type DynamicAliasAttributeItem =
 |}]
 
 
+(** 2. Inference *)
+
+(* Strengthening introduces dynamic aliases of module fields *)
+module M = struct module X = struct end end
+module M' = struct include M end
+[%%expect {|
+module M : sig module X : sig end end
+module M' : sig module X = M.X [@@dynamic_alias]  end
+|}]
+
 (** 3. Subtyping *)
 
 (* Dynamic aliases are a subtype of static ones *)
