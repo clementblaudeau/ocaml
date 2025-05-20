@@ -49,3 +49,103 @@ module TestSub : sig module X1 = X0 end =
 module X0 : sig end
 module TestSub : sig module X1 = X0 end
 |}]
+
+(* Static aliases are *not* a subtype of dynamic ones *)
+module X0 = struct end
+module TestSub : sig module X1 = X0 [@@dynamic_alias] end =
+  struct module X1 = X0 [@@static_alias] end
+[%%expect{|
+module X0 : sig end
+Line 3, characters 2-44:
+3 |   struct module X1 = X0 [@@static_alias] end
+      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Error: Signature mismatch:
+       Modules do not match:
+         sig module X1 = X0 end
+       is not included in
+         sig module X1 = X0 [@@dynamic_alias]  end
+       In module "X1":
+       Modules do not match:
+         (module X0) [@static_alias]
+       is not included in
+         (module X0) [@dynamic_alias]
+|}]
+
+(* Dynamic aliases are a subtype of other dynamic aliases with equivalent
+   paths (even with static aliases in the chain of equalities) *)
+module X0 = struct end
+module X1 = X0 [@dynamic_alias]
+module X2 = X0 [@static_alias]
+module TestSub_dynamic_alias_chain : sig module X3 = X1 [@@dynamic_alias] end =
+struct module X3 = X2 [@dynamic_alias] end
+[%%expect{|
+module X0 : sig end
+module X1 = X0 [@@dynamic_alias]
+module X2 = X0
+module TestSub_dynamic_alias_chain :
+  sig module X3 = X1 [@@dynamic_alias]  end
+|}]
+
+(* Dynamic aliasing information can be lost by subtyping *)
+module X0 = struct type t = A | B let x = A end
+module TestSub_lost_alias_abstract_type :
+sig module X1 : sig type t end end =
+  struct module X1 = X0 [@dynamic_alias] end
+module TestSub_lost_alias_concrete_type :
+sig module X1 : sig type t = X0.t = A | B end end =
+  struct module X1 = X0 [@dynamic_alias] end
+[%%expect{|
+module X0 : sig type t = A | B val x : t end
+module TestSub_lost_alias_abstract_type : sig module X1 : sig type t end end
+module TestSub_lost_alias_concrete_type :
+  sig module X1 : sig type t = X0.t = A | B end end
+|}]
+
+(* Loosing an alias forces strengthening *)
+module X0 = struct type t = A | B let x = A end
+module TestSub_functor_call =
+  (functor (Y: sig module X1 : sig type t end end) -> Y)(struct
+    module X1 = X0 [@dynamic_alias]
+  end)
+[%%expect{|
+module X0 : sig type t = A | B val x : t end
+module TestSub_functor_call : sig module X1 : sig type t = X0.t end end
+|}]
+
+(* Chain of aliases can be traversed by subtyping *)
+module X0 = struct module X = struct type t end end
+module X1 = struct module X = X0.X [@@dynamic_alias] end
+module Test_Sub_Chain : sig module X : sig type t = X0.X.t end end = X1 [@@dynamic_alias]
+
+[%%expect{|
+module X0 : sig module X : sig type t end end
+module X1 : sig module X = X0.X [@@dynamic_alias]  end
+module Test_Sub_Chain : sig module X : sig type t = X0.X.t end end
+|}]
+
+
+(* Path normalization goes through aliases *)
+module X0 = struct end
+module XDyn1 = X0 [@@dynamic_alias]
+module XDyn2 = X0 [@@dynamic_alias]
+module type SDyn1 = sig module X = XDyn1 [@@dynamic_alias] end
+module type SDyn2 = sig module X = XDyn2 [@@dynamic_alias] end
+let sub_test_dyn : (module SDyn1) -> (module SDyn2) = fun x -> x
+module XStat1 = X0 [@@static_alias]
+module XStat2 = X0 [@@static_alias]
+module type SStat1 = sig module X = XStat1 [@@static_alias] end
+module type SStat2 = sig module X = XStat2 [@@static_alias] end
+let sub_test_stat : (module SStat1) -> (module SStat2) = fun x -> x
+[%%expect{|
+module X0 : sig end
+module XDyn1 = X0 [@@dynamic_alias]
+module XDyn2 = X0 [@@dynamic_alias]
+module type SDyn1 = sig module X = XDyn1 [@@dynamic_alias]  end
+module type SDyn2 = sig module X = XDyn2 [@@dynamic_alias]  end
+val sub_test_dyn : (module SDyn1) -> (module SDyn2) = <fun>
+module XStat1 = X0
+module XStat2 = X0
+module type SStat1 = sig module X = XStat1 end
+module type SStat2 = sig module X = XStat2 end
+val sub_test_stat : (module SStat1) -> (module SStat2) = <fun>
+|}]
