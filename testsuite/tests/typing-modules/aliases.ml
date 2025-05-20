@@ -631,7 +631,10 @@ Line 15, characters 10-30:
                ^^^^^^^^^^^^^^^^^^^^
 Error: In this "with" constraint, the new definition of "I"
        does not match its original definition in the constrained signature:
-       Modules do not match: (module Int2) is not included in (module Int)
+       Modules do not match:
+         (module Int2) [@static_alias]
+       is not included in
+         (module Int) [@static_alias]
 |}];;
 
 (* (* if the above succeeded, one could break invariants *)

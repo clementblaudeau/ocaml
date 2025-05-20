@@ -982,7 +982,16 @@ let rec approx_modtype env smty =
         Env.lookup_module_path ~use:false ~load:false
           ~loc:smty.pmty_loc lid.txt env
       in
-      Mty_static_alias(path)
+      let open Builtin_attributes in
+      if has_static_alias smty.pmty_attributes then
+        Mty_static_alias path
+      else if has_dynamic_alias smty.pmty_attributes then
+        Mty_transparent path
+      else
+        (* Fallback case. Until transparent ascription is extended to support
+           more paths than static aliasing, inference of an ambiguous alias
+           always returns a static one *)
+        Mty_static_alias path
   | Pmty_signature ssg ->
       Mty_signature(approx_sig env ssg)
   | Pmty_functor(param, sres) ->
@@ -1504,9 +1513,20 @@ and transl_modtype_aux env smty =
       mkmty (Tmty_ident (path, lid)) (Mty_ident path) env loc
         smty.pmty_attributes
   | Pmty_alias lid ->
-      let path = transl_module_alias loc env lid.txt in
-      mkmty (Tmty_static_alias (path, lid)) (Mty_static_alias path) env loc
-        smty.pmty_attributes
+     let path = transl_module_alias loc env lid.txt in
+     let open Builtin_attributes in
+     if has_static_alias smty.pmty_attributes then
+       mkmty (Tmty_static_alias (path, lid)) (Mty_static_alias path) env loc
+         smty.pmty_attributes
+     else if has_dynamic_alias smty.pmty_attributes then
+       mkmty (Tmty_transparent (path, lid)) (Mty_transparent path) env loc
+         smty.pmty_attributes
+     else
+       (* Fallback case. Until transparent ascription is extended to support
+          more paths than static aliasing, inference of an ambiguous alias
+          always returns a static one *)
+       mkmty (Tmty_static_alias (path, lid)) (Mty_static_alias path) env loc
+          smty.pmty_attributes
   | Pmty_signature ssg ->
       let sg = transl_signature env ssg in
       mkmty (Tmty_signature sg) (Mty_signature sg.sig_type) env loc
@@ -1691,9 +1711,15 @@ and transl_signature env sg =
             final_env
         | Psig_module pmd ->
             let scope = Ctype.create_scope () in
+            let pmd_type =
+              (* The alias attributes are propagated downwards to the module
+                 type level. This comes from the impossibility to add
+                 attributes directly to [Pmty_alias] *)
+              Builtin_attributes.propagate_aliases_attributes_md
+                pmd.pmd_type pmd.pmd_attributes in
             let tmty =
               Builtin_attributes.warning_scope pmd.pmd_attributes
-                (fun () -> transl_modtype env pmd.pmd_type)
+                (fun () -> transl_modtype env pmd_type)
             in
             let pres =
               match tmty.mty_type with
@@ -2400,8 +2426,21 @@ and type_module_aux ~alias ~strengthen ~funct_body anchor env smod =
       let path =
         Env.lookup_module_path ~load:(not alias) ~loc:smod.pmod_loc lid.txt env
       in
+      let mty =
+        let open Builtin_attributes in
+        (* Alias attributes are used first for inference *)
+        if has_static_alias smod.pmod_attributes then
+          Mty_static_alias path
+        else if has_dynamic_alias smod.pmod_attributes then
+          Mty_transparent path
+        else
+        (* Fallback case. Until transparent ascription is extended to support
+           more paths than static aliasing, inference of an ambiguous alias
+           always returns a static one *)
+          Mty_static_alias path
+      in
       let md = { mod_desc = Tmod_ident (path, lid);
-                 mod_type = Mty_static_alias path;
+                 mod_type = mty;
                  mod_env = env;
                  mod_attributes = smod.pmod_attributes;
                  mod_loc = smod.pmod_loc } in
@@ -2884,6 +2923,10 @@ and type_str_item ~names ~toplevel ~funct_body anchor env shape_map
                   } ->
         let outer_scope = Ctype.get_current_level () in
         let scope = Ctype.create_scope () in
+        let smodl =
+          (* The static/dynamic alias attributes are propagated downwards to the
+             module level, to be used for inference. *)
+          Builtin_attributes.propagate_aliases_attributes_mb smodl attrs in
         let modl, md_shape =
           Builtin_attributes.warning_scope attrs
             (fun () ->

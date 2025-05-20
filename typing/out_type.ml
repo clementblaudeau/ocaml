@@ -1873,7 +1873,8 @@ let rec tree_of_modtype ?(ellipsis=false) = function
       Omty_functor (param, res)
   | Mty_static_alias p ->
       Omty_static_alias (tree_of_path (Some Module) p)
-  | Mty_transparent _p -> failwith "TODO: transparent ascription step 1"
+  | Mty_transparent p ->
+      Omty_transparent (tree_of_path (Some Module) p)
 
 and tree_of_functor_parameter = function
   | Unit ->
