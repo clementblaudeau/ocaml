@@ -61,6 +61,7 @@ let builtin_attrs =
   ; "boxed"
   ; "deprecated"
   ; "deprecated_mutable"
+  ; "dynamic_alias"
   ; "explicit_arity"
   ; "immediate"
   ; "immediate64"
@@ -72,6 +73,7 @@ let builtin_attrs =
   ; "remove_aliases"
   ; "specialise"
   ; "specialised"
+  ; "static_alias"
   ; "tailcall"
   ; "tail_mod_cons"
   ; "unboxed"
@@ -416,3 +418,6 @@ let has_boxed attrs = has_attribute "boxed" attrs
 let has_remove_aliases attrs = has_attribute "remove_aliases" attrs
 
 let has_atomic attrs = has_attribute "atomic" attrs
+
+let has_static_alias attrs = has_attribute "static_alias" attrs
+let has_dynamic_alias attrs = has_attribute "dynamic_alias" attrs

@@ -19,6 +19,7 @@
     - ocaml.boxed
     - ocaml.deprecated
     - ocaml.deprecated_mutable
+    - ocaml.dynamic_alias
     - ocaml.explicit_arity
     - ocaml.immediate
     - ocaml.immediate64
@@ -30,6 +31,7 @@
     - ocaml.remove_aliases
     - ocaml.specialise
     - ocaml.specialised
+    - ocaml.static_alias
     - ocaml.tailcall
     - ocaml.tail_mod_cons
     - ocaml.unboxed
@@ -190,3 +192,6 @@ val has_boxed: Parsetree.attributes -> bool
 val has_remove_aliases: Parsetree.attributes -> bool
 
 val has_atomic: Parsetree.attributes -> bool
+
+val has_static_alias: Parsetree.attributes -> bool
+val has_dynamic_alias: Parsetree.attributes -> bool
