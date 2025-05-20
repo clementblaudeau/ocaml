@@ -193,5 +193,14 @@ val has_remove_aliases: Parsetree.attributes -> bool
 
 val has_atomic: Parsetree.attributes -> bool
 
+(* Utils for handling attributes of static and dynamic aliases, used for
+   inference of (otherwise) ambiguous module fields *)
 val has_static_alias: Parsetree.attributes -> bool
 val has_dynamic_alias: Parsetree.attributes -> bool
+
+(* Rebuild a module type/expr by adding any static/dynamic alias attribute from
+   the second argument*)
+val propagate_aliases_attributes_md:
+      Parsetree.module_type -> Parsetree.attributes -> Parsetree.module_type
+val propagate_aliases_attributes_mb:
+      Parsetree.module_expr -> Parsetree.attributes -> Parsetree.module_expr

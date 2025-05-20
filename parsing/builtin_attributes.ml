@@ -419,5 +419,30 @@ let has_remove_aliases attrs = has_attribute "remove_aliases" attrs
 
 let has_atomic attrs = has_attribute "atomic" attrs
 
+(* Utils for handling attributes of static and dynamic aliases, used for
+   inference of (otherwise) ambiguous module fields *)
 let has_static_alias attrs = has_attribute "static_alias" attrs
 let has_dynamic_alias attrs = has_attribute "dynamic_alias" attrs
+
+let select_aliases_attributes attrs =
+  (select_attributes
+     [("static_alias", Return); ("dynamic_alias", Return)] attrs)
+
+(** As attributes cannot be attached directly to a module alias field in a
+    signature, the static/dynamic alias are attached to items instead, as in
+    [sig module X = P [@@dynamic_alias] end]. For regularity, the same
+    functionality is offered for module expressions, as in [struct module X = P
+    [@@dynamic_alias] end] (while an attribute could have been attached to [P]
+    directly here).
+
+    Therefore, two functions are provided to propagate alias attributes from the
+    module field of a signature (resp. structure) to the underlying module type
+    (resp. module expression) level. *)
+
+let propagate_aliases_attributes_md pmd_type attrs =
+  let sub_attrs = pmd_type.pmty_attributes in
+  { pmd_type with pmty_attributes = sub_attrs @ select_aliases_attributes attrs}
+
+let propagate_aliases_attributes_mb pmd_expr attrs =
+  let sub_attrs = pmd_expr.pmod_attributes in
+  { pmd_expr with pmod_attributes = sub_attrs @ select_aliases_attributes attrs}

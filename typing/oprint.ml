@@ -665,7 +665,7 @@ and print_out_sig_item ppf =
   | Osig_module (name, Omty_static_alias id, _) ->
       fprintf ppf "@[<2>module %s =@ %a@]" name print_ident id
   | Osig_module (name, Omty_transparent id, _) ->
-      fprintf ppf "@[<2>module %s =@ %a [@@dynamic_alias] @]"
+      fprintf ppf "@[<2>module %s =@ %a [@@@dynamic_alias] @]"
         name print_ident id
   | Osig_module (name, mty, rs) ->
       fprintf ppf "@[<2>%s %s :@ %a@]"
