@@ -34,6 +34,7 @@ Lines 7-10, characters 2-22:
 10 |     with type t = M.t)
 Error: This expression has type "(module S with type t = M.t)"
        but an expression was expected of type "(module S)"
+       There is no type "t" in the second module type.
 |}];;
 
 let rec k =

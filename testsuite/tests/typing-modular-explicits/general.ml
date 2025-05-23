@@ -126,6 +126,7 @@ Line 3, characters 6-7:
           ^
 Error: The value "m" has type "(module Typ with type t = int)"
        but an expression was expected of type "(module Typ)"
+       There is no type "t" in the second module type.
 |}]
 
 (** From here we will test things with labels *)
