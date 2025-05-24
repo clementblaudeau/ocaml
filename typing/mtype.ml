@@ -181,7 +181,7 @@ let scrape_for_type_of env pres mty =
 
 type variance = Co | Contra | Strict
 
-let rec nondep_mty_with_presence env va ids pres mty =
+let rec nondep_mty env va ids mty =
   match mty with
     Mty_ident p ->
       begin match Path.find_free_opt ids p with
@@ -191,8 +191,8 @@ let rec nondep_mty_with_presence env va ids pres mty =
             with Not_found ->
               raise (Ctype.Nondep_cannot_erase id)
           in
-          nondep_mty_with_presence env va ids pres expansion
-      | None -> pres, mty
+          nondep_mty env va ids expansion
+      | None -> mty
       end
   | Mty_static_alias p ->
       begin match Path.find_free_opt ids p with
@@ -202,8 +202,8 @@ let rec nondep_mty_with_presence env va ids pres mty =
             with Not_found ->
               raise (Ctype.Nondep_cannot_erase id)
           in
-          nondep_mty_with_presence env va ids Mp_present expansion.md_type
-      | None -> pres, mty
+          nondep_mty env va ids expansion.md_type
+      | None -> mty
       end
   | Mty_transparent p ->
       begin match Path.find_free_opt ids p with
@@ -213,14 +213,12 @@ let rec nondep_mty_with_presence env va ids pres mty =
             with Not_found ->
               raise (Ctype.Nondep_cannot_erase id)
           in
-          nondep_mty_with_presence env va ids Mp_present expansion.md_type
-      | None -> pres, mty
+          nondep_mty env va ids expansion.md_type
+      | None -> mty
       end
-  | Mty_signature sg ->
-      let mty = Mty_signature(nondep_sig env va ids sg) in
-      pres, mty
+  | Mty_signature sg -> Mty_signature(nondep_sig env va ids sg)
   | Mty_functor(Unit, res) ->
-      pres, Mty_functor(Unit, nondep_mty env va ids res)
+      Mty_functor(Unit, nondep_mty env va ids res)
   | Mty_functor(Named (param, arg), res) ->
       let var_inv =
         match va with Co -> Contra | Contra -> Co | Strict -> Strict in
@@ -229,14 +227,8 @@ let rec nondep_mty_with_presence env va ids pres mty =
         | None -> env
         | Some param -> Env.add_module ~noalias:true param Mp_present arg env
       in
-      let mty =
-        Mty_functor(Named (param, nondep_mty env var_inv ids arg),
-                    nondep_mty res_env va ids res)
-      in
-      pres, mty
-
-and nondep_mty env va ids mty =
-  snd (nondep_mty_with_presence env va ids Mp_present mty)
+      Mty_functor(Named (param, nondep_mty env var_inv ids arg),
+                  nondep_mty res_env va ids res)
 
 and nondep_sig_item env va ids = function
   | Sig_value(id, d, vis) ->
@@ -247,8 +239,13 @@ and nondep_sig_item env va ids = function
       Sig_type(id, Ctype.nondep_type_decl env ids (va = Co) d, rs, vis)
   | Sig_typext(id, ext, es, vis) ->
       Sig_typext(id, Ctype.nondep_extension_constructor env ids ext, es, vis)
-  | Sig_module(id, pres, md, rs, vis) ->
-      let pres, mty = nondep_mty_with_presence env va ids pres md.md_type in
+  | Sig_module(id, _, md, rs, vis) ->
+      let mty = nondep_mty env va ids md.md_type in
+      let pres = begin
+        match mty with
+        | Mty_static_alias _ -> Mp_absent
+        | _ -> Mp_present
+      end in
       Sig_module(id, pres, {md with md_type = mty}, rs, vis)
   | Sig_modtype(id, d, vis) ->
       Sig_modtype(id, nondep_modtype_decl env ids d, vis)
