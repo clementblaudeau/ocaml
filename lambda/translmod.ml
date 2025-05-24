@@ -277,13 +277,12 @@ let init_shape id modl =
         raise (Initialization_failure info)
     | Sig_module(id, _, md, _, _) :: rem when (Types.md_is_absent md) ->
         init_shape_struct
-          path (Env.add_module_declaration ~check:false
-                             id Mp_absent md env) rem
+          path (Env.add_module_declaration ~check:false id md env) rem
     | Sig_module(id, _, md, _, _) :: rem ->
         init_shape_mod (
           Pdot(path, Ident.name id)) md.md_loc env md.md_type ::
         init_shape_struct path (Env.add_module_declaration ~check:false
-                             id Mp_present md env) rem
+                             id md env) rem
     | Sig_modtype(id, minfo, _) :: rem ->
         init_shape_struct path (Env.add_modtype id minfo env) rem
     | Sig_class _ :: rem ->

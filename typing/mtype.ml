@@ -47,8 +47,7 @@ let rec strengthen_lazy ~aliasable env mty p =
   | MtyL_functor(Named (Some param, arg), res)
     when !Clflags.applicative_functors ->
       let env =
-        Env.add_module_lazy ~update_summary:false param Mp_present arg env
-      in
+        Env.add_module_lazy ~update_summary:false param arg env in
       MtyL_functor(Named (Some param, arg),
         strengthen_lazy ~aliasable:false env res (Papply(p, Pident param)))
   | MtyL_functor(Named (None, arg), res)
@@ -91,7 +90,7 @@ and strengthen_lazy_sig' ~aliasable env sg p =
         strengthen_lazy_decl ~aliasable env md (Pdot(p, Ident.name id))
       in
       let env =
-        Env.add_module_declaration_lazy ~update_summary:false id pres md env in
+        Env.add_module_declaration_lazy ~update_summary:false id md env in
       SigL_module(id, pres, str, rs, vis)
       :: strengthen_lazy_sig' ~aliasable env rem p
       (* Need to add the module in case it defines manifest module types *)
@@ -225,7 +224,7 @@ let rec nondep_mty env va ids mty =
       let res_env =
         match param with
         | None -> env
-        | Some param -> Env.add_module ~noalias:true param Mp_present arg env
+        | Some param -> Env.add_module ~noalias:true param arg env
       in
       Mty_functor(Named (param, nondep_mty env var_inv ids arg),
                   nondep_mty res_env va ids res)
@@ -332,9 +331,9 @@ and type_paths_sig env p sg =
     [] -> []
   | Sig_type(id, _decl, _, _) :: rem ->
       Pdot(p, Ident.name id) :: type_paths_sig env p rem
-  | Sig_module(id, pres, md, _, _) :: rem ->
+  | Sig_module(id, _, md, _, _) :: rem ->
       type_paths env (Pdot(p, Ident.name id)) md.md_type @
-      type_paths_sig (Env.add_module_declaration ~check:false id pres md env)
+      type_paths_sig (Env.add_module_declaration ~check:false id md env)
         p rem
   | Sig_modtype(id, decl, _) :: rem ->
       type_paths_sig (Env.add_modtype id decl env) p rem
@@ -360,7 +359,7 @@ and no_code_needed_sig env sg =
       end
   | Sig_module(id, _, ({md_type = Mty_static_alias _} as md), _, _) :: rem ->
       no_code_needed_sig
-        (Env.add_module_declaration ~check:false id Mp_absent md env) rem
+        (Env.add_module_declaration ~check:false id md env) rem
   | Sig_module(_, _, _, _, _) :: _ -> false
   | (Sig_type _ | Sig_modtype _ | Sig_class_type _) :: rem ->
       no_code_needed_sig env rem
@@ -527,7 +526,7 @@ and remove_aliases_sig env args sg =
             remove_aliases_mty env args pres mty
       in
       Sig_module(id, pres, {md with md_type = mty} , rs, priv) ::
-      remove_aliases_sig (Env.add_module id pres mty env) args rem
+      remove_aliases_sig (Env.add_module id mty env) args rem
   | Sig_modtype(id, mtd, priv) :: rem ->
       Sig_modtype(id, mtd, priv) ::
       remove_aliases_sig (Env.add_modtype id mtd env) args rem
