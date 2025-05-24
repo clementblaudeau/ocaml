@@ -296,7 +296,7 @@ let iterator_with_env super env =
         match param with
         | None -> ()
         | Some id ->
-          env := lazy (Env.add_module ~noalias:true id Mp_present
+          env := lazy (Env.add_module ~noalias:true id
                        mty_arg (Lazy.force env_before))
       end;
       self.Btype.it_module_type self mty_body;
@@ -1006,7 +1006,7 @@ let rec approx_modtype env smty =
             let rarg = Mtype.scrape_for_functor_arg env arg in
             let scope = Ctype.create_scope () in
             let (id, newenv) =
-              Env.enter_module ~scope ~noalias:true name Mp_present rarg env
+              Env.enter_module ~scope ~noalias:true name rarg env
             in
             Types.Named (Some id, arg), newenv
       in
@@ -1070,7 +1070,7 @@ and approx_sig env ssg =
           in
           let id, newenv =
             Env.enter_module_declaration ~scope (Option.get pmd.pmd_name.txt)
-              pres md env
+              md env
           in
           Sig_module(id, pres, md, Trec_not, Exported) :: approx_sig newenv srem
       | Psig_modsubst pms ->
@@ -1079,13 +1079,8 @@ and approx_sig env ssg =
             Env.lookup_module ~use:false ~loc:pms.pms_manifest.loc
                pms.pms_manifest.txt env
           in
-          let pres =
-            match md.Types.md_type with
-            | Mty_static_alias _ -> Mp_absent
-            | _ -> Mp_present
-          in
           let _, newenv =
-            Env.enter_module_declaration ~scope pms.pms_name.txt pres md env
+            Env.enter_module_declaration ~scope pms.pms_name.txt md env
           in
           approx_sig newenv srem
       | Psig_recmodule sdecls ->
@@ -1103,7 +1098,7 @@ and approx_sig env ssg =
           let newenv =
             List.fold_left
               (fun env (id, md) -> Env.add_module_declaration ~check:false
-                  id Mp_present md env)
+                  id md env)
               env decls
           in
           map_rec
@@ -1551,7 +1546,7 @@ and transl_modtype_aux env smty =
                   }
                 in
                 Env.enter_module_declaration ~scope ~noalias:true
-                  name Mp_present arg_md env
+                  name arg_md env
               in
               Some id, newenv
           in
@@ -1741,7 +1736,7 @@ and transl_signature env sg =
               | None -> None, env
               | Some name ->
                 let id, newenv =
-                  Env.enter_module_declaration ~scope name pres md env
+                  Env.enter_module_declaration ~scope name md env
                 in
                 Signature_names.check_module names pmd.pmd_name.loc id;
                 Some id, newenv
@@ -1773,13 +1768,8 @@ and transl_signature env sg =
                   md_uid = Uid.mk ~current_unit:(Env.get_current_unit ());
                 }
             in
-            let pres =
-              match md.md_type with
-              | Mty_static_alias _ -> Mp_absent
-              | _ -> Mp_present
-            in
             let id, newenv =
-              Env.enter_module_declaration ~scope pms.pms_name.txt pres md env
+              Env.enter_module_declaration ~scope pms.pms_name.txt md env
             in
             let info =
               `Substituted_away (Subst.add_module id path Subst.identity)
@@ -1982,7 +1972,7 @@ and transl_recmodule_modtypes env sdecls =
     List.fold_left (fun env (id_shape, _, md, _) ->
       Option.fold ~none:env ~some:(fun (id, shape) ->
         Env.add_module_declaration ~check:true ~shape ~noalias:true
-          id Mp_present md env
+          id md env
       ) id_shape
     ) env curr
   in
@@ -2098,7 +2088,7 @@ let rec nongen_modtype env = function
         | Unit
         | Named (None, _) -> env
         | Named (Some id, param) ->
-            Env.add_module ~noalias:true id Mp_present param env
+            Env.add_module ~noalias:true id param env
       in
       nongen_modtype env body
 
@@ -2228,8 +2218,7 @@ let check_recmodule_inclusion env bindings =
                  then mty_actual
                  else subst_and_strengthen env scope s (Some id) mty_actual
                in
-               Env.add_module ~noalias:false ~shape id'
-                 Mp_present mty_actual' env)
+               Env.add_module ~noalias:false ~shape id' mty_actual' env)
           env bindings1 in
       (* Build the output substitution Y_i <- X_i *)
       let s' =
@@ -2515,7 +2504,7 @@ and type_module_aux ~alias ~strengthen ~funct_body anchor env smod =
               let id = Ident.create_scoped ~scope name in
               let shape = Shape.var md_uid id in
               let newenv = Env.add_module_declaration
-                ~shape ~noalias:true ~check:true id Mp_present arg_md env
+                ~shape ~noalias:true ~check:true id arg_md env
               in
               Some id, newenv, id
           in
@@ -2683,8 +2672,7 @@ and type_one_application ~ctx:(apply_loc,sfunct,md_f,args)
               | None -> env, mty_res
               | Some param ->
                   let env =
-                    Env.add_module ~noalias:true param
-                      Mp_present arg.mod_type env
+                    Env.add_module ~noalias:true param arg.mod_type env
                   in
                   check_well_formed_module env app_loc
                     "the signature of this functor application" mty_res;
@@ -2955,7 +2943,7 @@ and type_str_item ~names ~toplevel ~funct_body anchor env shape_map
           | None -> None, env, []
           | Some name ->
             let id, e = Env.enter_module_declaration
-              ~scope ~shape:md_shape name pres md env
+              ~scope ~shape:md_shape name md env
             in
             Signature_names.check_module names pmb_loc id;
             Some id, e,
@@ -3035,7 +3023,7 @@ and type_str_item ~names ~toplevel ~funct_body anchor env shape_map
                      }
                    in
                    Env.add_module_declaration ~check:true ~shape
-                     id Mp_present mdecl env
+                     id mdecl env
             )
             env bindings1
         in
