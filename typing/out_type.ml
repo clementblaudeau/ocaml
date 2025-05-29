@@ -1832,7 +1832,7 @@ let ident_sigitem = function
   | Types.Sig_type(ident,_,_,_) ->  {hide=true;ident}
   | Types.Sig_class(ident,_,_,_)
   | Types.Sig_class_type (ident,_,_,_)
-  | Types.Sig_module(ident,_, _,_,_)
+  | Types.Sig_module(ident,_,_,_)
   | Types.Sig_value (ident,_,_)
   | Types.Sig_modtype (ident,_,_)
   | Types.Sig_typext (ident,_,_,_)   ->  {hide=false; ident }
@@ -1925,7 +1925,7 @@ and tree_of_sigitem = function
       tree_of_type_declaration id decl rs
   | Sig_typext(id, ext, es, _) ->
       tree_of_extension_constructor id ext es
-  | Sig_module(id, _, md, rs, _) ->
+  | Sig_module(id, md, rs, _) ->
       let ellipsis =
         List.exists (function
           | Parsetree.{attr_name = {txt="..."}; attr_payload = PStr []} -> true

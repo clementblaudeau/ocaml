@@ -162,7 +162,7 @@ module Runtime_coercion = struct
     | Mty_signature s , [] -> List.rev ctx, s
     | Mty_signature s, Item k :: q ->
         begin match runtime_item k s with
-        | Sig_module (id, _, md,_,_) ->
+        | Sig_module (id, md, _, _) ->
             find env (Context.Module id :: ctx) q md.md_type
         | _ -> raise Not_found
         end

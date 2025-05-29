@@ -375,8 +375,7 @@ val enter_extension:
   scope:int -> rebind:bool -> string ->
   extension_constructor -> t -> Ident.t * t
 val enter_module:
-  scope:int -> ?noalias:bool -> string ->
-  module_type -> t -> Ident.t * t
+  scope:int -> ?noalias:bool -> string -> module_type -> t -> Ident.t * t
 val enter_module_declaration:
   scope:int -> ?noalias:bool -> ?shape:Shape.t -> string ->
   module_declaration -> t -> Ident.t * t
