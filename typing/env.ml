@@ -1660,10 +1660,10 @@ let prefix_idents root prefixing_sub sg =
         ((SigL_typext(id, ec, es, vis), p) :: items_and_paths)
         (Subst.add_type id p prefixing_sub)
         rem
-    | SigL_module(id, pres, md, rs, vis) :: rem ->
+    | SigL_module(id, md, rs, vis) :: rem ->
       let p = Pdot(root, Ident.name id) in
       prefix_idents root
-        ((SigL_module(id, pres, md, rs, vis), p) :: items_and_paths)
+        ((SigL_module(id, md, rs, vis), p) :: items_and_paths)
         (Subst.add_module id p prefixing_sub)
         rem
     | SigL_modtype(id, mtd, vis) :: rem ->
@@ -1808,7 +1808,7 @@ let rec components_of_module_maker
               { cda_description = descr; cda_address = Some addr; cda_shape }
             in
             c.comp_constrs <- add_to_tbl (Ident.name id) cda c.comp_constrs
-        | SigL_module(id, _, md, _, _) ->
+        | SigL_module(id, md, _, _) ->
             let md' =
               (* The prefixed items get the same scope as [cm_path], which is
                  the prefix. *)
@@ -2341,7 +2341,7 @@ let add_item (map, mod_shape) comp env =
   | Sig_typext(id, ext, _, _) ->
       let map, shape = proj_shape (Shape.Item.extension_constructor id) in
       map, add_extension ~check:false ?shape ~rebind:false id ext env
-  | Sig_module(id, _, md, _, _) ->
+  | Sig_module(id, md, _, _) ->
       let map, shape = proj_shape (Shape.Item.module_ id) in
       map, add_module_declaration ~check:false ?shape id md env
   | Sig_modtype(id, decl, _)  ->

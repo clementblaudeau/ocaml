@@ -347,7 +347,7 @@ let item_ident_name = function
         else Field_typext
       in
       (id, d.ext_loc, field_desc kind id)
-  | Sig_module(id, _, d, _, _) -> (id, d.md_loc, field_desc Field_module id)
+  | Sig_module(id, d, _, _) -> (id, d.md_loc, field_desc Field_module id)
   | Sig_modtype(id, d, _) -> (id, d.mtd_loc, field_desc Field_modtype id)
   | Sig_class(id, d, _, _) -> (id, d.cty_loc, field_desc Field_class id)
   | Sig_class_type(id, d, _, _) ->
@@ -356,12 +356,12 @@ let item_ident_name = function
 let is_runtime_component = function
   | Sig_value(_,{val_kind = Val_prim _}, _)
   | Sig_type(_,_,_,_)
-  | Sig_module(_,_,{md_type=Mty_static_alias _},_,_)
+  | Sig_module(_,{md_type=(Mty_static_alias _)},_,_)
   | Sig_modtype(_,_,_)
   | Sig_class_type(_,_,_,_) -> false
   | Sig_value(_,_,_)
   | Sig_typext(_,_,_,_)
-  | Sig_module(_,_,_,_,_)
+  | Sig_module(_,_,_,_)
   | Sig_class(_,_,_,_) -> true
 
 (* Print a coercion *)
@@ -714,7 +714,7 @@ and signatures ~core ~direction ~loc env subst sig1 sig2 mod_shape =
   let (id_pos_list,_) =
     List.fold_left
       (fun (l,pos) -> function
-          Sig_module (id, _, md, _, _) when (Types.md_is_present md) ->
+          Sig_module (id, md, _, _) when (Types.md_is_present md) ->
             ((id,pos,Tcoerce_none)::l , pos+1)
         | item -> (l, if is_runtime_component item then pos+1 else pos))
       ([], 0) sig1 in
@@ -859,7 +859,7 @@ and signature_components ~core ~direction ~loc old_env env subst
               Shape.Map.add_extcons_proj shape_map id1 orig_shape
             in
             id1, item, (ext1.ext_uid, ext2.ext_uid), shape_map, true
-        | Sig_module(id1, _, mty1, _, _), Sig_module(_, _, mty2, _, _)
+        | Sig_module(id1, mty1, _, _), Sig_module(_, mty2, _, _)
           -> begin
               let orig_shape =
                 Shape.(proj orig_shape (Item.module_ id1))

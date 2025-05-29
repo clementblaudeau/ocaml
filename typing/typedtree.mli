@@ -505,7 +505,6 @@ and module_binding =
      mb_id: Ident.t option; (** [None] for [module _ = struct ... end] *)
      mb_name: string option loc;
      mb_uid: Uid.t;
-     mb_presence: Types.module_presence;
      mb_expr: module_expr;
      mb_attributes: attributes;
      mb_loc: Location.t;
@@ -598,7 +597,6 @@ and module_declaration =
      md_id: Ident.t option;
      md_name: string option loc;
      md_uid: Uid.t;
-     md_presence: Types.module_presence;
      md_type: module_type;
      md_attributes: attributes;
      md_loc: Location.t;
@@ -943,3 +941,7 @@ val split_pattern:
 
 val map_apply_arg:
   ('a -> ' b) -> ('a, 'omitted) arg_or_omitted ->  ('b, 'omitted) arg_or_omitted
+
+(* Indicates if a module as been inferred as present (i.e. anything but a static
+   alias)*)
+val module_binding_is_present : module_binding -> bool

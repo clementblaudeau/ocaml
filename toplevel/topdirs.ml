@@ -219,13 +219,13 @@ let trim_signature = function
       Mty_signature
         (List.map
            (function
-               Sig_module (id, pres, md, rs, priv) ->
+               Sig_module (id, md, rs, priv) ->
                  let attribute =
                    Ast_helper.Attr.mk
                      (Location.mknoloc "...")
                      (Parsetree.PStr [])
                  in
-                 Sig_module (id, pres, {md with md_attributes =
+                 Sig_module (id, {md with md_attributes =
                                           attribute :: md.md_attributes},
                              rs, priv)
              (*| Sig_modtype (id, Modtype_manifest mty) ->
@@ -414,7 +414,7 @@ let () =
        in
        let rec accum_aliases path md acc =
          let def rs =
-           Sig_module (id, Mp_present,
+           Sig_module (id,
                        {md with md_type = trim_signature md.md_type},
                        rs, Exported) in
          match md.md_type with

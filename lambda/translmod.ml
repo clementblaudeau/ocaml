@@ -275,10 +275,10 @@ let init_shape id modl =
         let new_path = Pdot(path, Ident.name subid) in
         let info = Unsafe {reason=Unsafe_typext; loc; path=new_path} in
         raise (Initialization_failure info)
-    | Sig_module(id, _, md, _, _) :: rem when (Types.md_is_absent md) ->
+    | Sig_module(id, md, _, _) :: rem when (Types.md_is_absent md) ->
         init_shape_struct
           path (Env.add_module_declaration ~check:false id md env) rem
-    | Sig_module(id, _, md, _, _) :: rem ->
+    | Sig_module(id, md, _, _) :: rem ->
         init_shape_mod (
           Pdot(path, Ident.name id)) md.md_loc env md.md_type ::
         init_shape_struct path (Env.add_module_declaration ~check:false
