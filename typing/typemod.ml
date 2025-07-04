@@ -386,8 +386,8 @@ let check_invalid_aliases paths ~loc env invalid_alias super =
       in
       { super with
         Btype.it_signature_item = (fun self -> function
-            | Sig_module (id, _,
-                {md_type = Mty_static_alias aliased_path}, _, _)
+            | Sig_module (id, _,{md_type = Mty_static_alias aliased_path}, _, _)
+            | Sig_module (id, _,{md_type = Mty_transparent aliased_path}, _, _)
               when would_become_invalid_path aliased_path ->
                 raise(Error(loc, Lazy.force !env,
                             With_creates_invalid_aliases
