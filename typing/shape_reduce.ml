@@ -242,7 +242,7 @@ end) = struct
           let mnf = Item.Map.map (delay_reduce env) m in
           return (NStruct mnf)
       | Static_alias t -> return (NStatic_alias (delay_reduce env t))
-      | Transparent _t -> return (NTransparent (delay_reduce env t))
+      | Transparent t -> return (NTransparent (delay_reduce env t))
       | Error s -> approx_nf (return (NError s))
 
   and read_back env (nf : nf) : t =
