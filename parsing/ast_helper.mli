@@ -255,8 +255,6 @@ module Mty:
 
     val ident: ?loc:loc -> ?attrs:attrs -> lid -> module_type
     val alias: ?loc:loc -> ?attrs:attrs -> lid -> module_type
-    val static_alias: ?loc:loc -> ?attrs:attrs -> lid -> module_type
-    val transparent: ?loc:loc -> ?attrs:attrs -> lid -> module_type
     val signature: ?loc:loc -> ?attrs:attrs -> signature -> module_type
     val functor_: ?loc:loc -> ?attrs:attrs ->
       functor_parameter -> module_type -> module_type

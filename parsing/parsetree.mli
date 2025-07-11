@@ -895,8 +895,6 @@ and module_type_desc =
   | Pmty_extension of extension  (** [[%id]] *)
   | Pmty_alias of Longident.t loc
   (** represents ambiguous aliases [(module M)] *)
-  | Pmty_static_alias of Longident.t loc (** no syntax yet *)
-  | Pmty_transparent of Longident.t loc  (** no syntax yet *)
 
 and functor_parameter =
   | Unit  (** [()] *)

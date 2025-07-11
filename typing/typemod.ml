@@ -963,12 +963,20 @@ let rec approx_modtype env smty =
         Env.lookup_modtype_path ~use:false ~loc:smty.pmty_loc lid.txt env
       in
       Mty_ident path
-  | Pmty_alias lid | Pmty_static_alias lid | Pmty_transparent lid ->
+  | Pmty_alias lid ->
      let path =
         Env.lookup_module_path ~use:false ~load:false
-          ~loc:smty.pmty_loc lid.txt env
-      in
-      Mty_static_alias(path)
+          ~loc:smty.pmty_loc lid.txt env in
+     let open Builtin_attributes in
+     if has_static_alias smty.pmty_attributes then
+       Mty_static_alias path
+     else if has_dynamic_alias smty.pmty_attributes then
+       Mty_transparent path
+     else
+       (* Fallback case. Until transparent ascription is extended to support
+          more paths than static aliasing, inference of an ambiguous alias
+          always returns a static one *)
+       Mty_static_alias path
   | Pmty_signature ssg ->
       Mty_signature(approx_sig env ssg)
   | Pmty_functor(param, sres) ->
@@ -1495,14 +1503,6 @@ and transl_modtype_aux env smty =
           always returns a static one *)
        mkmty (Tmty_static_alias (path, lid)) (Mty_static_alias path) env loc
           smty.pmty_attributes
-  | Pmty_static_alias lid ->
-     let path = transl_module_alias loc env lid.txt in
-     mkmty (Tmty_static_alias (path, lid)) (Mty_static_alias path) env loc
-       smty.pmty_attributes
-  | Pmty_transparent lid ->
-     let path = transl_module_alias loc env lid.txt in
-     mkmty (Tmty_transparent (path, lid)) (Mty_transparent path) env loc
-       smty.pmty_attributes
   | Pmty_signature ssg ->
      let sg = transl_signature env ssg in
      mkmty (Tmty_signature sg) (Mty_signature sg.sig_type) env loc

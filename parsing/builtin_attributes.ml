@@ -428,6 +428,16 @@ let select_aliases_attributes attrs =
   (select_attributes
      [("static_alias", Return); ("dynamic_alias", Return)] attrs)
 
+let add_static_alias attrs loc =
+  if has_attribute "static_alias" attrs then attrs
+  else
+    (Ast_helper.Attr.mk (Location.mkloc "static_alias" loc) (PStr []))::attrs
+
+let add_dynamic_alias attrs loc =
+  if has_attribute "dynamic_alias" attrs then attrs
+  else
+    (Ast_helper.Attr.mk (Location.mkloc "dynamic_alias" loc) (PStr []))::attrs
+
 (** As attributes cannot be attached directly to a module alias field in a
     signature, the static/dynamic alias are attached to items instead, as in
     [sig module X = P [@@dynamic_alias] end]. For regularity, the same

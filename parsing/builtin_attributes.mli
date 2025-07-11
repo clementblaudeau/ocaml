@@ -198,6 +198,11 @@ val has_atomic: Parsetree.attributes -> bool
 val has_static_alias: Parsetree.attributes -> bool
 val has_dynamic_alias: Parsetree.attributes -> bool
 
+val add_static_alias:
+  Parsetree.attributes -> Location.t -> Parsetree.attributes
+val add_dynamic_alias:
+  Parsetree.attributes -> Location.t -> Parsetree.attributes
+
 (* Rebuild a module type/expr by adding any static/dynamic alias attribute from
    the second argument*)
 val propagate_aliases_attributes_md:

@@ -1418,10 +1418,6 @@ module Analyser =
                   Name.from_longident longident.txt
               | Parsetree.Pmty_alias longident ->
                   Name.from_longident longident.txt
-              | Parsetree.Pmty_static_alias longident ->
-                  Name.from_longident longident.txt
-              | Parsetree.Pmty_transparent longident ->
-                  Name.from_longident longident.txt
               | Parsetree.Pmty_signature _ ->
                   "??"
               | Parsetree.Pmty_functor _ ->
@@ -1613,9 +1609,7 @@ module Analyser =
           Module_type_alias { mta_name = Odoc_env.full_module_type_name env name ;
                               mta_module = None }
 
-      | Parsetree.Pmty_alias longident
-      | Parsetree.Pmty_static_alias longident
-      | Parsetree.Pmty_transparent longident ->
+      | Parsetree.Pmty_alias longident ->
           let name =
             match sig_module_type with
               Types.Mty_static_alias path -> Name.from_path path
@@ -1707,9 +1701,7 @@ module Analyser =
       | Parsetree.Pmty_ident _longident ->
           let k = analyse_module_type_kind env current_module_name module_type sig_module_type in
           Module_with ( k, "" )
-      | Parsetree.Pmty_alias _
-      | Parsetree.Pmty_static_alias _
-      | Parsetree.Pmty_transparent _ ->
+      | Parsetree.Pmty_alias _ ->
           begin
             match sig_module_type with
               Types.Mty_static_alias path ->
