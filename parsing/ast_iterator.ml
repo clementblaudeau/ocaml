@@ -277,6 +277,8 @@ module MT = struct
     match desc with
     | Pmty_ident s -> iter_loc_lid sub s
     | Pmty_alias s -> iter_loc_lid sub s
+    | Pmty_transparent (p, s) -> iter_loc_lid sub p;
+        Option.iter (fun md -> sub.module_type sub md) s
     | Pmty_signature sg -> sub.signature sub sg
     | Pmty_functor (param, mt2) ->
         iter_functor_param sub param;

@@ -994,6 +994,9 @@ let rec approx_modtype env smty =
            more paths than static aliasing, inference of an ambiguous alias
            always returns a static one *)
         Mty_static_alias path
+  | Pmty_transparent (_lid, _md) ->
+    (* should lookup [lid] and approximate [md] *)
+     failwith "[Transparent ascription step 2] signature approximation"
   | Pmty_signature ssg ->
       Mty_signature(approx_sig env ssg)
   | Pmty_functor(param, sres) ->
@@ -1521,6 +1524,13 @@ and transl_modtype_aux env smty =
           always returns a static one *)
        mkmty (Tmty_static_alias (path, lid)) (Mty_static_alias path) env loc
           smty.pmty_attributes
+  | Pmty_transparent (lid, None) ->
+     let path = transl_module_alias loc env lid.txt in
+     mkmty (Tmty_transparent (path, lid)) (Mty_transparent path) env loc
+       smty.pmty_attributes
+  | Pmty_transparent (_lid, Some _md) ->
+    (* should translate the path and typecheck md *)
+     failwith "[Transparent ascription step 2]"
   | Pmty_signature ssg ->
       let sg = transl_signature env ssg in
       mkmty (Tmty_signature sg) (Mty_signature sg.sig_type) env loc

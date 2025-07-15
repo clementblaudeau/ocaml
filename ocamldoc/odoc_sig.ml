@@ -1418,6 +1418,8 @@ module Analyser =
                   Name.from_longident longident.txt
               | Parsetree.Pmty_alias longident ->
                   Name.from_longident longident.txt
+              | Parsetree.Pmty_transparent _ ->
+                 failwith "[Transparent ascription step 2]"
               | Parsetree.Pmty_signature _ ->
                   "??"
               | Parsetree.Pmty_functor _ ->
@@ -1619,6 +1621,9 @@ module Analyser =
           Module_type_alias { mta_name = Odoc_env.full_module_name env name ;
                               mta_module = None }
 
+      | Parsetree.Pmty_transparent _ ->
+         failwith "[Transparent ascription step 2]"
+
       | Parsetree.Pmty_signature ast ->
           (
            let ast = filter_out_erased_items_from_signature erased ast in
@@ -1712,6 +1717,9 @@ module Analyser =
             | _ ->
               raise (Failure "Parsetree.Pmty_alias _ but not Types.Mty_alias _")
            end
+      | Parsetree.Pmty_transparent _ ->
+         failwith "[Transparent ascription step 2]"
+
       | Parsetree.Pmty_signature signature ->
           (
            let signature = filter_out_erased_items_from_signature erased signature in
