@@ -1753,6 +1753,10 @@ module_type:
       { mk_functor_typ args mty }
   | MODULE TYPE OF attributes module_expr %prec below_LBRACKETAT
       { mkmty ~loc:$sloc ~attrs:$4 (Pmty_typeof $5) }
+  | LPAREN EQUAL p = mkrhs(mod_ext_longident) COLONGREATER UNDERSCORE RPAREN
+      { mkmty ~loc:$loc (Pmty_transparent (p, None))}
+  | LPAREN EQUAL p = mkrhs(mod_ext_longident) COLONGREATER mty = module_type RPAREN
+      { mkmty ~loc:$loc (Pmty_transparent (p, Some mty))}
   | LPAREN module_type RPAREN
       { $2 }
   | LPAREN module_type error
