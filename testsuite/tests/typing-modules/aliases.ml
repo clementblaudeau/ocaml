@@ -950,3 +950,18 @@ module X0 : sig end
 module M : sig module X = X0 end
 module M' : sig module X = X0 end
 |}]
+
+
+(* Invalid aliases inside module types are rejected *)
+module NonAliasablePath1 (Y:sig end) = struct
+  module type T = sig
+    module X2 = Y
+  end
+end
+[%%expect {|
+Line 3, characters 4-17:
+3 |     module X2 = Y
+        ^^^^^^^^^^^^^
+Error: Functor arguments and recursive modules (within the
+       recursive definition), such as "Y", cannot be aliased
+|}]

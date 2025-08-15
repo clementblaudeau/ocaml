@@ -41,3 +41,50 @@ module type AttributeItem =
     module AttributeIdent' = X0
   end
 |}]
+
+
+(* Invalid attributes throw an error *)
+
+(* Attribute on a non-aliasable path (functor argument) *)
+module X0 = struct end
+module F (_:sig end) = struct end
+module NonAliasablePath(Y:sig end) = struct
+  module X1 = Y [@@static_alias]
+end
+[%%expect {|
+module X0 : sig end
+module F : sig end -> sig end
+Line 4, characters 14-15:
+4 |   module X1 = Y [@@static_alias]
+                  ^
+Error: Functor arguments and recursive modules (within the
+       recursive definition), such as "Y", cannot be aliased
+|}]
+
+(* Attribute on a non-aliasable path (recursive module inside the recursive
+   knot) *)
+module rec X0 : sig end = struct end
+and NonAliasablePath : sig end = struct
+  module X1 = X0 [@@static_alias]
+end
+[%%expect {|
+Line 3, characters 14-16:
+3 |   module X1 = X0 [@@static_alias]
+                  ^^
+Error: Functor arguments and recursive modules (within the
+       recursive definition), such as "X0", cannot be aliased
+|}]
+
+(* Attribute on a non-aliasable path (sig) *)
+module NonAliasablePath (Y:sig end) = struct
+  module type T = sig
+    module X1 = Y [@@static_alias]
+  end
+end
+[%%expect {|
+Line 3, characters 4-34:
+3 |     module X1 = Y [@@static_alias]
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Error: Functor arguments and recursive modules (within the
+       recursive definition), such as "Y", cannot be aliased
+|}]

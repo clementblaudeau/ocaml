@@ -127,7 +127,6 @@ module TestSub_functor_call : sig module X1 : sig type t = X0.t end end
 module X0 = struct module X = struct type t end end
 module X1 = struct module X = X0.X [@@dynamic_alias] end
 module Test_Sub_Chain : sig module X : sig type t = X0.X.t end end = X1 [@@dynamic_alias]
-
 [%%expect{|
 module X0 : sig module X : sig type t end end
 module X1 : sig module X = X0.X [@@dynamic_alias]  end
@@ -159,4 +158,46 @@ module XStat2 = X0
 module type SStat1 = sig module X = XStat1 end
 module type SStat2 = sig module X = XStat2 end
 val sub_test_stat : (module SStat1) -> (module SStat2) = <fun>
+|}]
+
+
+(** Invalid attributes throw an error. We test that the [@dynamic_alias]
+   attribute throws an error if used:
+
+   1. At a non aliasable positions (outside of a module field of a structure or
+   a signature).
+
+   2. With a non-aliasable path (or with something else than a path)
+
+   Similar tests for the [@static_alias] attribute are in [static_aliases.ml]
+*)
+
+(* Attribute on a non-aliasable path (functor argument) *)
+module X0 = struct end
+module F (_:sig end) = struct end
+module NonAliasablePath(Y:sig end) = struct
+  module X1 = Y [@@dynamic_alias]
+end
+[%%expect {|
+module X0 : sig end
+module F : sig end -> sig end
+Line 16, characters 14-15:
+16 |   module X1 = Y [@@dynamic_alias]
+                   ^
+Error: Functor arguments and recursive modules (within the
+       recursive definition), such as "Y", cannot be aliased
+|}]
+
+(* Attribute on a non-aliasable path (recursive module inside the recursive
+   knot) *)
+module rec X0 : sig end = struct end
+and NonAliasablePath : sig end = struct
+  module X1 = X0 [@@dynamic_alias]
+end
+[%%expect {|
+Line 3, characters 14-16:
+3 |   module X1 = X0 [@@dynamic_alias]
+                  ^^
+Error: Functor arguments and recursive modules (within the
+       recursive definition), such as "X0", cannot be aliased
 |}]

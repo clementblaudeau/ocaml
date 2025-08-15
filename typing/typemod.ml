@@ -2405,61 +2405,52 @@ let rec type_module ?(alias=false) ~strengthen ~funct_body anchor env smod =
 and type_module_aux ~alias ~strengthen ~funct_body anchor env smod =
   match smod.pmod_desc with
     Pmod_ident lid ->
+      let static_alias_flag, dynamic_alias_flag =
+        let open Builtin_attributes in
+        has_static_alias smod.pmod_attributes,
+        has_dynamic_alias smod.pmod_attributes
+      in
       let path =
         Env.lookup_module_path ~load:(not alias) ~loc:smod.pmod_loc lid.txt env
       in
-      let mty =
-        let open Builtin_attributes in
-        (* Alias attributes are used first for inference *)
-        if has_static_alias smod.pmod_attributes then
-          Mty_static_alias path
-        else if has_dynamic_alias smod.pmod_attributes then
-          Mty_transparent path
-        else
-        (* Fallback case. Until transparent ascription is extended to support
-           more paths than static aliasing, inference of an ambiguous alias
-           always returns a static one *)
-          Mty_static_alias path
-      in
-      let md = { mod_desc = Tmod_ident (path, lid);
-                 mod_type = mty;
-                 mod_env = env;
-                 mod_attributes = smod.pmod_attributes;
-                 mod_loc = smod.pmod_loc } in
-      let aliasable = Env.is_aliasable path env in
-      let shape =
+      let path_shape =
         Env.shape_of_path ~namespace:Shape.Sig_component_kind.Module env path
       in
-      let shape =
-        if alias && aliasable then
-          Shape.static_alias shape
-        else shape
-      in
-      let md =
-        if alias && aliasable then
-          (Env.add_required_global (Path.head path); md)
-        else begin
-          let mty =
-            if strengthen then
-              Env.find_strengthened_module ~aliasable path env
-            else
-              (Env.find_module path env).md_type
-          in
-          match mty with
-          | Mty_static_alias p1 when not alias ->
-              let p1 = Env.normalize_module_path (Some smod.pmod_loc) env p1 in
-              let mty = Includemod.expand_module_alias
-                  ~strengthen env p1 in
-              { md with
-                mod_desc =
-                  Tmod_constraint (md, mty, Tmodtype_implicit,
-                                   Tcoerce_alias (env, path, Tcoerce_none));
-                mod_type = mty }
-          | mty ->
-              { md with mod_type = mty }
-        end
-      in
-      md, shape
+      let pre_md = fun mty ->  { mod_desc = Tmod_ident (path, lid);
+                                 mod_type = mty;
+                                 mod_env = env;
+                                 mod_attributes = smod.pmod_attributes;
+                                 mod_loc = smod.pmod_loc } in
+      let aliasable = Env.is_aliasable path env in
+      (* Error case *)
+      if (static_alias_flag || dynamic_alias_flag) && (not aliasable) then
+        (* Non aliasable paths are rejected *)
+        raise (Error (smod.pmod_loc, env, Cannot_alias path));
+      if alias && aliasable then begin
+        (* registering a required global if the alias is valid *)
+        Env.add_required_global (Path.head path);
+
+        if static_alias_flag then
+          pre_md (Mty_static_alias path), Shape.static_alias path_shape
+        else if dynamic_alias_flag then
+          pre_md (Mty_transparent path), Shape.transparent path_shape
+        else
+          (* Fallback alias case where [alias] and [aliasable] are true . Until
+             transparent ascription is extended to support more paths than
+             static aliasing, inference of an ambiguous alias always returns a
+             static one *)
+          pre_md (Mty_static_alias path), Shape.static_alias path_shape
+      end else
+        let mty =
+          if strengthen then
+            Env.find_strengthened_module ~aliasable path env
+          else
+            (Env.find_module path env).md_type
+        in
+        if not alias then
+          pre_md (Env.scrape_alias env mty), path_shape
+        else
+          pre_md mty, path_shape
   | Pmod_structure sstr ->
       let (str, sg, names, shape, _finalenv) =
         type_structure ~funct_body anchor env sstr in
