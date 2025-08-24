@@ -105,8 +105,11 @@ let extract_sig env loc mty =
     (* The signature of unlinked modules aliases (when using
        [-no-alias-deps]) cannot be extracted *)
   | Mty_static_alias path
-  | Mty_transparent path ->
-      raise(Error(loc, env, Cannot_scrape_alias path))
+  | Mty_transparent (path, None) ->
+     raise(Error(loc, env, Cannot_scrape_alias path))
+  | Mty_transparent (_path, Some _) ->
+     (* Should return the associated signature, possibly strengthened by path *)
+     failwith "[Transparent ascription step 2]"
   | _ -> raise(Error(loc, env, Signature_expected))
 
 let extract_sig_open env loc mty =
@@ -115,8 +118,11 @@ let extract_sig_open env loc mty =
     (* The signature of unlinked modules aliases (when using
        [-no-alias-deps]) cannot be extracted *)
   | Mty_static_alias path
-  | Mty_transparent path ->
+  | Mty_transparent (path, None) ->
       raise(Error(loc, env, Cannot_scrape_alias path))
+  | Mty_transparent (_path, Some _) ->
+     (* Should return the associated signature, possibly strengthened by path *)
+     failwith "[Transparent ascription step 2]"
   | mty -> raise(Error(loc, env, Structure_expected mty))
 
 (* Compute the environment after opening a module *)
@@ -391,7 +397,8 @@ let check_invalid_aliases paths ~loc env invalid_alias super =
       { super with
         Btype.it_signature_item = (fun self -> function
             | Sig_module (id, {md_type = Mty_static_alias aliased_path}, _, _)
-            | Sig_module (id, {md_type = Mty_transparent aliased_path}, _, _)
+              | Sig_module (id, {md_type =
+                                   Mty_transparent (aliased_path, _)}, _, _)
               when would_become_invalid_path aliased_path ->
                 raise(Error(loc, Lazy.force !env,
                             With_creates_invalid_aliases
@@ -992,7 +999,7 @@ let rec approx_modtype env smty =
       if has_static_alias smty.pmty_attributes then
         Mty_static_alias path
       else if has_dynamic_alias smty.pmty_attributes then
-        Mty_transparent path
+        Mty_transparent (path, None)
       else
         (* Fallback case. Until transparent ascription is extended to support
            more paths than static aliasing, inference of an ambiguous alias
@@ -1520,8 +1527,8 @@ and transl_modtype_aux env smty =
        mkmty (Tmty_static_alias (path, lid)) (Mty_static_alias path) env loc
          smty.pmty_attributes
      else if has_dynamic_alias smty.pmty_attributes then
-       mkmty (Tmty_transparent (path, lid)) (Mty_transparent path) env loc
-         smty.pmty_attributes
+       mkmty (Tmty_transparent (path, lid))
+         (Mty_transparent (path, None)) env loc smty.pmty_attributes
      else
        (* Fallback case. Until transparent ascription is extended to support
           more paths than static aliasing, inference of an ambiguous alias
@@ -1530,7 +1537,7 @@ and transl_modtype_aux env smty =
           smty.pmty_attributes
   | Pmty_transparent (lid, None) ->
      let path = transl_module_alias loc env lid.txt in
-     mkmty (Tmty_transparent (path, lid)) (Mty_transparent path) env loc
+     mkmty (Tmty_transparent (path, lid)) (Mty_transparent (path, None)) env loc
        smty.pmty_attributes
   | Pmty_transparent (_lid, Some _md) ->
     (* should translate the path and typecheck md *)
@@ -2466,7 +2473,7 @@ and type_module_aux ~alias ~strengthen ~mode anchor env smod =
         if static_alias_flag then
           pre_md (Mty_static_alias path), Shape.static_alias path_shape
         else if dynamic_alias_flag then
-          pre_md (Mty_transparent path), Shape.transparent path_shape
+          pre_md (Mty_transparent (path, None)), Shape.transparent path_shape
         else
           (* Fallback alias case where [alias] and [aliasable] are true . Until
              transparent ascription is extended to support more paths than

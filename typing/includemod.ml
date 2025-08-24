@@ -430,16 +430,14 @@ let retrieve_functor_params env mty =
         | Some mty -> retrieve_functor_params before env mty
         | None -> { Error.params = List.rev before; res }
         end
-    | Mty_static_alias p as res ->
+    | (Mty_transparent (p, None) as res)
+    | (Mty_static_alias p as res) ->
         begin match expand_module_alias ~strengthen:false env p with
         | Ok mty ->  retrieve_functor_params before env mty
         | Error _ -> { Error.params = List.rev before; res }
         end
-    | Mty_transparent p as res ->
-        begin match expand_module_alias ~strengthen:false env p with
-        | Ok mty ->  retrieve_functor_params before env mty
-        | Error _ -> { Error.params = List.rev before; res }
-        end
+    | Mty_transparent (_p, Some _mty) as _res ->
+        failwith "[Transparent ascription step 2]"
     | Mty_functor (p, res) -> retrieve_functor_params (p :: before) env res
     | Mty_signature _ as res -> { Error.params = List.rev before; res }
   in
@@ -519,20 +517,26 @@ let rec modtypes ~core ~direction ~loc env subst mty1 mty2 shape =
 and try_modtypes ~core ~direction ~loc env subst mty1 mty2 orig_shape =
   match mty1, mty2 with
   (* Equivalent aliases *)
-  | Mty_transparent p1, Mty_transparent p2
   | Mty_static_alias p1, Mty_static_alias p2
     when (equal_module_paths env p1 subst p2) ->
-     Ok (Tcoerce_none, orig_shape)
+      Ok (Tcoerce_none, orig_shape)
+
+  | Mty_transparent (p1, None), Mty_transparent (p2, None)
+    when (equal_module_paths env p1 subst p2) ->
+      Ok (Tcoerce_none, orig_shape)
 
   (* Dynamic aliases are subtype of static ones *)
-  | Mty_transparent p1, Mty_static_alias p2
+  | Mty_transparent (p1, _), Mty_static_alias p2
     when (equal_module_paths env p1 subst p2) ->
-     Ok (Tcoerce_none, orig_shape)
+      Ok (Tcoerce_none, orig_shape)
+
+  | Mty_transparent (_p1, Some _), _ ->
+      failwith "[Transparent ascription step 2]"
 
   (* Aliases [module X = P1] can be downgraded to the (strengthened) signature
      of [P1], dropping the aliasing information *)
   | Mty_static_alias p1, _
-  | Mty_transparent p1, _ -> begin
+  | Mty_transparent (p1, None), _ -> begin
       begin match expand_module_alias ~strengthen:false env p1 with
       | Error e -> Error (Error.Mt_core e)
       | Ok mty1 ->

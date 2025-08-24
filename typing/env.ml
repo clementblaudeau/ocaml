@@ -1357,13 +1357,15 @@ let rec normalize_module_path lax env = function
 and expand_module_path lax env path =
   try match find_module_lazy ~alias:true path env with
   | {mdl_type=MtyL_static_alias path1}
-  | {mdl_type=MtyL_transparent path1} ->
+  | {mdl_type=MtyL_transparent (path1,None)} ->
       let path' = normalize_module_path lax env path1 in
       if lax || !Clflags.no_alias_deps then path' else
       let id = Path.head path in
       if Ident.global id && not (Ident.same id (Path.head path'))
       then add_required_global id;
       path'
+  | {mdl_type=MtyL_transparent (_, Some _ )} ->
+      failwith "[Transparent ascription step 2]"
   | _ -> path
   with Not_found when lax
   || (match path with Pident id -> not (Ident.persistent id) | _ -> true) ->
@@ -1623,7 +1625,7 @@ let rec scrape_alias env ?path mty =
           (Warnings.No_cmi_file (Path.name path));*)
         mty
       end
-  | MtyL_transparent path, _ ->
+  | MtyL_transparent (path, None), _ ->
       begin try
         scrape_alias env ((find_module_lazy path env).mdl_type) ~path
       with Not_found ->
@@ -1631,6 +1633,8 @@ let rec scrape_alias env ?path mty =
           (Warnings.No_cmi_file (Path.name path));*)
         mty
       end
+  | MtyL_transparent (_, Some _), _ ->
+      failwith "[Transparent ascription step 2]"
   | mty, Some path ->
       !strengthen ~aliasable:true env mty path
   | _ -> mty
@@ -1891,7 +1895,8 @@ let rec components_of_module_maker
           fcomp_subst_cache = Hashtbl.create 17 })
   | MtyL_ident _ -> Error No_components_abstract
   | MtyL_static_alias p -> Error (No_components_alias p)
-  | MtyL_transparent p -> Error (No_components_alias p)
+  | MtyL_transparent (p, None) -> Error (No_components_alias p)
+  | MtyL_transparent (_, Some _) -> failwith "[Transparent ascription step 2]"
 
 (* Insertion of bindings by identifier + path *)
 

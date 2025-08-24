@@ -122,7 +122,7 @@ and strengthen_lazy_decl ~aliasable env md p =
   let open Subst.Lazy in
   match md.mdl_type with
   | MtyL_static_alias _ -> md
-  | _ when aliasable -> {md with mdl_type = MtyL_transparent p}
+  | _ when aliasable -> {md with mdl_type = MtyL_transparent (p, None)}
   | mty -> {md with mdl_type = strengthen_lazy ~aliasable env mty p}
 
 let () = Env.strengthen := strengthen_lazy
@@ -140,7 +140,8 @@ let rec make_aliases_absent mty =
   match mty with
   | Mty_static_alias _ -> mty
   (* to be changed once transparent signatures contain functor applications *)
-  | Mty_transparent p -> Mty_static_alias p
+  | Mty_transparent (p, None) -> Mty_static_alias p
+  | Mty_transparent (p, Some mty) -> Mty_transparent (p, Some mty)
   | Mty_signature sg ->
       Mty_signature(make_aliases_absent_sig sg)
   | Mty_functor(arg, res) ->
@@ -203,7 +204,7 @@ let rec nondep_mty env va ids mty =
           nondep_mty env va ids expansion.md_type
       | None -> mty
       end
-  | Mty_transparent p ->
+  | Mty_transparent (p, None) ->
       begin match Path.find_free_opt ids p with
       | Some id ->
           let expansion =
@@ -214,6 +215,7 @@ let rec nondep_mty env va ids mty =
           nondep_mty env va ids expansion.md_type
       | None -> mty
       end
+  | Mty_transparent (_, Some _) -> failwith "[Transparent ascription step 2]"
   | Mty_signature sg -> Mty_signature(nondep_sig env va ids sg)
   | Mty_functor(Unit, res) ->
       Mty_functor(Unit, nondep_mty env va ids res)

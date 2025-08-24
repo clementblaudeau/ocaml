@@ -1873,8 +1873,9 @@ let rec tree_of_modtype ?(ellipsis=false) = function
       Omty_functor (param, res)
   | Mty_static_alias p ->
       Omty_static_alias (tree_of_path (Some Module) p)
-  | Mty_transparent p ->
-      Omty_transparent (tree_of_path (Some Module) p)
+  | Mty_transparent (p, mty_opt) ->
+      Omty_transparent (tree_of_path (Some Module) p,
+                        Option.map tree_of_modtype mty_opt)
 
 and tree_of_functor_parameter = function
   | Unit ->
