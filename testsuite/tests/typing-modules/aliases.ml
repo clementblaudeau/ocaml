@@ -60,7 +60,7 @@ module C3 :
     val escaped : char -> string
     val compare : t -> t -> int
     val equal : t -> t -> bool
-    module Ascii = Char.Ascii [@@dynamic_alias]
+    module Ascii : (= Char.Ascii :> _)
     val lowercase_ascii : char -> char
     val uppercase_ascii : char -> char
     val seeded_hash : int -> t -> int
@@ -90,7 +90,7 @@ module F :
       val escaped : char -> string
       val compare : t -> t -> int
       val equal : t -> t -> bool
-      module Ascii = Char.Ascii [@@dynamic_alias]
+      module Ascii : (= Char.Ascii :> _)
       val lowercase_ascii : char -> char
       val uppercase_ascii : char -> char
       val seeded_hash : int -> t -> int
@@ -105,7 +105,7 @@ module C4 :
     val escaped : char -> string
     val compare : t -> t -> int
     val equal : t -> t -> bool
-    module Ascii = Char.Ascii [@@dynamic_alias]
+    module Ascii : (= Char.Ascii :> _)
     val lowercase_ascii : char -> char
     val uppercase_ascii : char -> char
     val seeded_hash : int -> t -> int
@@ -142,7 +142,7 @@ M3'.N'.x;;
 [%%expect{|
 module M'' : sig module N' : sig val x : int end end
 - : int = 1
-module M2 : sig module N = M'.N [@@dynamic_alias]  module N' = N end
+module M2 : sig module N : (= M'.N :> _) module N' = N end
 module M3 : sig module N' : sig val x : int end end
 - : int = 1
 module M3' : sig module N' : sig val x : int end end
@@ -413,7 +413,7 @@ let f (x : t) : T.t = x ;;
 [%%expect{|
 module F : (M : sig end) -> sig type t end
 module T : sig module M : sig end type t = F(M).t end
-module M = T.M [@@dynamic_alias]
+module M : (= T.M :> _)
 type t = F(M).t
 val f : t -> T.t = <fun>
 |}];;
@@ -519,7 +519,7 @@ let f (x : t) : T.t = x
 [%%expect {|
 module F : (M : sig end) -> sig type t end
 module T : sig module M : sig end type t = F(M).t end
-module M = T.M [@@dynamic_alias]
+module M : (= T.M :> _)
 type t = F(M).t
 val f : t -> T.t = <fun>
 |}]

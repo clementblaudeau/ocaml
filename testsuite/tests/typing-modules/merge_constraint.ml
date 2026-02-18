@@ -618,10 +618,9 @@ module Valid : sig module X : sig end end
 module type T1 = sig module X1 = Valid end
 module type T2 = sig module X1 = Valid.X end
 module type T3 = sig module X0 : sig end module X1 = Valid end
-module type T4 = sig module X1 = Valid [@@dynamic_alias]  end
-module type T5 = sig module X1 = Valid.X [@@dynamic_alias]  end
-module type T6 =
-  sig module X0 : sig end module X1 = Valid [@@dynamic_alias]  end
+module type T4 = sig module X1 : (= Valid :> _) end
+module type T5 = sig module X1 : (= Valid.X :> _) end
+module type T6 = sig module X0 : sig end module X1 : (= Valid :> _) end
 |}]
 
 (* Invalid aliases should be caught early *)

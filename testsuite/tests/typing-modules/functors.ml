@@ -959,7 +959,7 @@ Error: Signature mismatch:
          end
        In module "B":
        Modules do not match:
-         sig module C = B.C [@@dynamic_alias]  end
+         sig module C : (= B.C :> _) end
        is not included in
          sig
            module C :
@@ -977,7 +977,7 @@ Error: Signature mismatch:
          end
        In module "B.C":
        Modules do not match:
-         sig module D = B.C.D [@@dynamic_alias]  end
+         sig module D : (= B.C.D :> _) end
        is not included in
          sig
            module D :
@@ -992,7 +992,7 @@ Error: Signature mismatch:
          end
        In module "B.C.D":
        Modules do not match:
-         sig module E = B.C.D.E [@@dynamic_alias]  end
+         sig module E : (= B.C.D.E :> _) end
        is not included in
          sig
            module E :
@@ -1004,7 +1004,7 @@ Error: Signature mismatch:
          end
        In module "B.C.D.E":
        Modules do not match:
-         sig module F = B.C.D.E.F [@@dynamic_alias]  end
+         sig module F : (= B.C.D.E.F :> _) end
        is not included in
          sig
            module F :
@@ -1289,7 +1289,7 @@ module Add_one' :
 module Add_one :
   sig
     type witness
-    module M = Add_one'.M [@@dynamic_alias]
+    module M : (= Add_one'.M :> _)
     module type t = Add_one'.t
   end
 module Add_three :
@@ -1313,7 +1313,7 @@ Error: This application of the functor "F" is ill-typed.
        1. The following extra argument is provided
               Add_one' :
               sig
-                module M = Add_one'.M [@@dynamic_alias]
+                module M : (= Add_one'.M :> _)
                 module type t = Add_one'.t
               end
        2. Module Add_three matches the expected module type
@@ -1339,7 +1339,7 @@ Error: This application of the functor "F" is ill-typed.
        2. The following extra argument is provided
               Add_three :
               sig
-                module M = Add_three.M [@@dynamic_alias]
+                module M : (= Add_three.M :> _)
                 module type t = Add_three.t
                 type witness = Add_three.witness
               end
@@ -2045,7 +2045,7 @@ Error: The functor application "Set.Make(Set)(A)" is ill-typed.
             sig
               module type OrderedType = Set.OrderedType
               module type S = Set.S
-              module Make = Set.Make [@@dynamic_alias]
+              module Make : (= Set.Make :> _)
             end
           is not included in
             Set.OrderedType

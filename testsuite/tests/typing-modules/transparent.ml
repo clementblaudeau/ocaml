@@ -18,13 +18,13 @@ module type DynamicAliasAttributeItem = sig
 end
 [%%expect {|
 module X0 : sig end
-module AttributeItem = X0 [@@dynamic_alias]
-module AttributeIdent = X0 [@@dynamic_alias]
-module AttributeIdent' = X0 [@@dynamic_alias]
+module AttributeItem : (= X0 :> _)
+module AttributeIdent : (= X0 :> _)
+module AttributeIdent' : (= X0 :> _)
 module type DynamicAliasAttributeItem =
   sig
-    module AttributeItem = X0 [@@dynamic_alias]
-    module AttributeIdent = X0 [@@dynamic_alias]
+    module AttributeItem : (= X0 :> _)
+    module AttributeIdent : (= X0 :> _)
   end
 |}]
 
@@ -36,7 +36,7 @@ module M = struct module X = struct end end
 module M' = struct include M end
 [%%expect {|
 module M : sig module X : sig end end
-module M' : sig module X = M.X [@@dynamic_alias]  end
+module M' : sig module X : (= M.X :> _) end
 |}]
 
 (* Avoidance should introduce dynamic aliases *)
@@ -47,7 +47,7 @@ module M = struct
 end
 [%%expect{|
 module X0 : sig end
-module M : sig module X2 = X0 [@@dynamic_alias]  end
+module M : sig module X2 : (= X0 :> _) end
 |}]
 
 (* Inference should preserve the "most local" name, not defer to the origin *)
@@ -86,12 +86,12 @@ Error: Signature mismatch:
        Modules do not match:
          sig module X1 = X0 end
        is not included in
-         sig module X1 = X0 [@@dynamic_alias]  end
+         sig module X1 : (= X0 :> _) end
        In module "X1":
        Modules do not match:
          (module X0) [@static_alias]
        is not included in
-         (module X0) [@dynamic_alias]
+         (= X0 :> _)
 |}]
 
 (* Dynamic aliases are a subtype of other dynamic aliases with equivalent
@@ -103,10 +103,9 @@ module TestSub_dynamic_alias_chain : sig module X3 = X1 [@@dynamic_alias] end =
 struct module X3 = X2 [@dynamic_alias] end
 [%%expect{|
 module X0 : sig end
-module X1 = X0 [@@dynamic_alias]
+module X1 : (= X0 :> _)
 module X2 = X0
-module TestSub_dynamic_alias_chain :
-  sig module X3 = X1 [@@dynamic_alias]  end
+module TestSub_dynamic_alias_chain : sig module X3 : (= X1 :> _) end
 |}]
 
 (* Dynamic aliasing information can be lost by subtyping *)
@@ -141,7 +140,7 @@ module X1 = struct module X = X0.X [@@dynamic_alias] end
 module Test_Sub_Chain : sig module X : sig type t = X0.X.t end end = X1 [@@dynamic_alias]
 [%%expect{|
 module X0 : sig module X : sig type t end end
-module X1 : sig module X = X0.X [@@dynamic_alias]  end
+module X1 : sig module X : (= X0.X :> _) end
 module Test_Sub_Chain : sig module X : sig type t = X0.X.t end end
 |}]
 
@@ -160,10 +159,10 @@ module type SStat2 = sig module X = XStat2 [@@static_alias] end
 let sub_test_stat : (module SStat1) -> (module SStat2) = fun x -> x
 [%%expect{|
 module X0 : sig end
-module XDyn1 = X0 [@@dynamic_alias]
-module XDyn2 = X0 [@@dynamic_alias]
-module type SDyn1 = sig module X = XDyn1 [@@dynamic_alias]  end
-module type SDyn2 = sig module X = XDyn2 [@@dynamic_alias]  end
+module XDyn1 : (= X0 :> _)
+module XDyn2 : (= X0 :> _)
+module type SDyn1 = sig module X : (= XDyn1 :> _) end
+module type SDyn2 = sig module X : (= XDyn2 :> _) end
 val sub_test_dyn : (module SDyn1) -> (module SDyn2) = <fun>
 module XStat1 = X0
 module XStat2 = X0
