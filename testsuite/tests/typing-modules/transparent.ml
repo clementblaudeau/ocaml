@@ -50,6 +50,18 @@ module X0 : sig end
 module M : sig module X2 = X0 [@@dynamic_alias]  end
 |}]
 
+(* Inference should preserve the "most local" name, not defer to the origin *)
+module X0 = struct end
+module X1 = X0 [@@dynamic_alias]
+module X2 = X1 [@@dynamic_alias]
+module X3 = X2 [@@dynamic_alias]
+[%%expect{|
+module X0 : sig end
+module X1 = X0 [@@dynamic_alias]
+module X2 = X1 [@@dynamic_alias]
+module X3 = X2 [@@dynamic_alias]
+|}]
+
 (** 3. Subtyping *)
 
 (* Dynamic aliases are a subtype of static ones *)
