@@ -82,9 +82,9 @@ module NonAliasablePath (Y:sig end) = struct
   end
 end
 [%%expect {|
-Line 3, characters 4-34:
+Line 3, characters 16-17:
 3 |     module X1 = Y [@@static_alias]
-        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                    ^
 Error: Functor arguments and recursive modules (within the
        recursive definition), such as "Y", cannot be aliased
 |}]

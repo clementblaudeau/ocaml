@@ -921,9 +921,9 @@ module rec X1 : sig end = struct
 end
 and X2 : sig end = struct end
 [%%expect {|
-Line 2, characters 21-34:
+Line 2, characters 32-34:
 2 |   module Inner : sig module X = X2 end = struct end
-                         ^^^^^^^^^^^^^
+                                    ^^
 Error: Functor arguments and recursive modules (within the
        recursive definition), such as "X2", cannot be aliased
 |}]
@@ -959,9 +959,9 @@ module NonAliasablePath1 (Y:sig end) = struct
   end
 end
 [%%expect {|
-Line 3, characters 4-17:
+Line 3, characters 16-17:
 3 |     module X2 = Y
-        ^^^^^^^^^^^^^
+                    ^
 Error: Functor arguments and recursive modules (within the
        recursive definition), such as "Y", cannot be aliased
 |}]

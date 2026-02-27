@@ -205,9 +205,9 @@ end = struct
 end;;
 [%%expect {|
 type (_, _) eq = Refl : ('a, 'a) eq
-Line 8, characters 4-16:
+Line 8, characters 15-16:
 8 |     module N = M
-        ^^^^^^^^^^^^
+                   ^
 Error: Functor arguments and recursive modules (within the
        recursive definition), such as "M", cannot be aliased
 |}]

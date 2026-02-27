@@ -982,6 +982,8 @@ let rec approx_modtype env smty =
         Env.lookup_module_path ~use:false ~load:false
           ~loc:smty.pmty_loc lid.txt env
       in
+      if not (Env.is_aliasable path env) then
+              raise (Error (smty.pmty_loc, env, Cannot_alias path));
       let open Builtin_attributes in
       if has_static_alias smty.pmty_attributes then
         Mty_static_alias path
@@ -1503,7 +1505,9 @@ and transl_modtype_aux env smty =
       mkmty (Tmty_ident (path, lid)) (Mty_ident path) env loc
         smty.pmty_attributes
   | Pmty_alias lid ->
-     let path = transl_module_alias loc env lid.txt in
+      let path = transl_module_alias loc env lid.txt in
+      if not (Env.is_aliasable path env) then
+                    raise (Error (loc, env, Cannot_alias path));
      let open Builtin_attributes in
      if has_static_alias smty.pmty_attributes then
        mkmty (Tmty_static_alias (path, lid)) (Mty_static_alias path) env loc
@@ -1710,13 +1714,6 @@ and transl_signature env sg =
             let tmty =
               Builtin_attributes.warning_scope pmd.pmd_attributes
                 (fun () -> transl_modtype env pmd_type)
-            in
-            let () =
-              match tmty.mty_type with
-              | Mty_static_alias p ->
-                  if not (Env.is_aliasable p env) then
-                    raise (Error (pmd.pmd_loc, env, Cannot_alias p));
-              | _ -> ()
             in
             let md = {
               md_type=tmty.mty_type;
