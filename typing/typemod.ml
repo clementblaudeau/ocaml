@@ -99,7 +99,7 @@ let rec path_concat head p =
 
 (* Extract a signature from a module type *)
 
-let extract_sig env loc mty =
+let rec extract_sig env loc mty =
   match Env.scrape_alias env mty with
     Mty_signature sg -> sg
     (* The signature of unlinked modules aliases (when using
@@ -107,9 +107,8 @@ let extract_sig env loc mty =
   | Mty_static_alias path
   | Mty_transparent (path, None) ->
      raise(Error(loc, env, Cannot_scrape_alias path))
-  | Mty_transparent (_path, Some _) ->
-     (* Should return the associated signature, possibly strengthened by path *)
-     failwith "[Transparent ascription step 2]"
+  | Mty_transparent (_, Some mty) ->
+      extract_sig env loc mty
   | _ -> raise(Error(loc, env, Signature_expected))
 
 let extract_sig_open env loc mty =
