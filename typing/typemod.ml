@@ -80,6 +80,7 @@ type error =
   | Non_packable_local_modtype_subst of Path.t
   | With_cannot_remove_packed_modtype of Path.t * module_type
   | Cannot_alias of Path.t
+  | Invalid_transparent_signature of Path.t * Includemod.explanation
 
 exception Error of Location.t * Env.t * error
 exception Error_forward of Location.error
@@ -1538,9 +1539,28 @@ and transl_modtype_aux env smty =
      let path = transl_module_alias loc env lid.txt in
      mkmty (Tmty_transparent (path, lid)) (Mty_transparent (path, None)) env loc
        smty.pmty_attributes
-  | Pmty_transparent (_lid, Some _md) ->
-    (* should translate the path and typecheck md *)
-     failwith "[Transparent ascription step 2]"
+  | Pmty_transparent (lid, Some md) ->
+      (* Translate the user-provided signature *)
+      let { mty_type } = transl_modtype env md in
+      (* Lookup the path and the signature of the module at that path *)
+      let path, md_path = Env.lookup_module ~loc lid.txt env in
+      (* Check that the user-provided signature is a supertype of the
+         module's strengthened signature *)
+      let () =
+        match Includemod.check_modtype_inclusion ~loc env
+                md_path.md_type path mty_type with
+        | None -> ()
+        | Some explanation ->
+            raise (Error(loc, env,
+                         Invalid_transparent_signature(path, explanation)))
+      in
+      (* Strengthen the user-provided signature *)
+      let mty_type_str =
+        Mtype.strengthen ~aliasable:false env mty_type path in
+      mkmty
+        (Tmty_transparent (path, lid))
+        (Mty_transparent (path, Some mty_type_str))
+        env loc smty.pmty_attributes
   | Pmty_signature ssg ->
       let sg = transl_signature env ssg in
       mkmty (Tmty_signature sg) (Mty_signature sg.sig_type) env loc
@@ -3593,6 +3613,15 @@ let report_error ~loc _env = function
       Location.errorf ~loc
         "@[This module is not a structure; it has type@ %a"
         (Style.as_inline_code modtype) mty
+  | Invalid_transparent_signature (path, explanation) ->
+      Location.errorf ~loc
+        "@[<v>\
+           @[This transparent signature is invalid:@ \
+             the signature of %a@ \
+             is not a subtype of the provided signature:@]@ \
+         %a@]"
+        Style.inline_code (Path.name path)
+        Includemod_errorprinter.err_msgs explanation
   | With_no_component lid ->
       Location.errorf ~loc
         "@[The signature constrained by %a has no component named %a@]"

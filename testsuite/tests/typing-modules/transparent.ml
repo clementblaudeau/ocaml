@@ -60,6 +60,26 @@ module X0 : sig end
 module X1 = X0 [@@dynamic_alias]
 module X2 = X1 [@@dynamic_alias]
 module X3 = X2 [@@dynamic_alias]
+(* Invalid signatures should be rejected *)
+module X0 = struct type t = A | B end
+module type Valid_same      = (= X0 :> sig type t = X0.t = A | B end)
+module type Valid_subtype   = (= X0 :> sig type t end)
+module type Invalid         = (= X0 :> sig type u end)
+[%%expect{|
+module X0 : sig type t = A | B end
+module type Valid_same = (= X0 :> sig type t = X0.t = A | B end)
+module type Valid_subtype = (= X0 :> sig type t = X0.t end)
+Line 4, characters 30-54:
+4 | module type Invalid         = (= X0 :> sig type u end)
+                                  ^^^^^^^^^^^^^^^^^^^^^^^^
+Error: This transparent signature is invalid: the signature of "X0"
+       is not a subtype of the provided signature:
+       Modules do not match:
+         sig type t = X0.t = A | B end
+       is not included in
+         sig type u end
+       The type "u" is required but not provided
+|}]
 |}]
 
 (** 3. Subtyping *)
