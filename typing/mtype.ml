@@ -215,7 +215,8 @@ let rec nondep_mty env va ids mty =
           nondep_mty env va ids expansion.md_type
       | None -> mty
       end
-  | Mty_transparent (_, Some _) -> failwith "[Transparent ascription step 2]"
+  | Mty_transparent (_, Some _) ->
+      failwith "[Transparent ascription step 2] mtype.ml:218"
   | Mty_signature sg -> Mty_signature(nondep_sig env va ids sg)
   | Mty_functor(Unit, res) ->
       Mty_functor(Unit, nondep_mty env va ids res)

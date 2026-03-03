@@ -437,7 +437,7 @@ let retrieve_functor_params env mty =
         | Error _ -> { Error.params = List.rev before; res }
         end
     | Mty_transparent (_p, Some _mty) as _res ->
-        failwith "[Transparent ascription step 2]"
+        failwith "retrieve_functor_params:439"
     | Mty_functor (p, res) -> retrieve_functor_params (p :: before) env res
     | Mty_signature _ as res -> { Error.params = List.rev before; res }
   in

@@ -122,7 +122,7 @@ let extract_sig_open env loc mty =
       raise(Error(loc, env, Cannot_scrape_alias path))
   | Mty_transparent (_path, Some _) ->
      (* Should return the associated signature, possibly strengthened by path *)
-     failwith "[Transparent ascription step 2]"
+     failwith "typemod.ml:extract_sig_open"
   | mty -> raise(Error(loc, env, Structure_expected mty))
 
 (* Compute the environment after opening a module *)
@@ -1007,7 +1007,7 @@ let rec approx_modtype env smty =
         Mty_static_alias path
   | Pmty_transparent (_lid, _md) ->
     (* should lookup [lid] and approximate [md] *)
-     failwith "[Transparent ascription step 2] signature approximation"
+     failwith "typemod.ml:approx_modtype"
   | Pmty_signature ssg ->
       Mty_signature(approx_sig env ssg)
   | Pmty_functor(param, sres) ->
@@ -2739,7 +2739,7 @@ and type_one_application ~ctx:(apply_loc,sfunct,md_f,args)
         | _ -> Includemod.Anonymous_functor
       in
       raise(Includemod.Apply_error {loc=apply_loc;env;app_name;mty_f;args})
-  | Mty_transparent _ -> failwith "TODO: transparent ascription step 1"
+  | Mty_transparent _ -> failwith "typemod.ml:type_one_application"
 
 and type_open_decl ?used_slot ?toplevel ~mode names env sod =
   Builtin_attributes.warning_scope sod.popen_attributes
