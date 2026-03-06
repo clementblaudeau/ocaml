@@ -516,48 +516,14 @@ let rec modtypes ~core ~direction ~loc env subst mty1 mty2 shape =
 
 and try_modtypes ~core ~direction ~loc env subst mty1 mty2 orig_shape =
   match mty1, mty2 with
-  (* Equivalent aliases *)
-  | Mty_static_alias p1, Mty_static_alias p2
-    when (equal_module_paths env p1 subst p2) ->
-      Ok (Tcoerce_none, orig_shape)
 
-  | Mty_transparent (p1, None), Mty_transparent (p2, None)
-    when (equal_module_paths env p1 subst p2) ->
-      Ok (Tcoerce_none, orig_shape)
-
-  (* Dynamic aliases are subtype of static ones *)
-  | Mty_transparent (p1, _), Mty_static_alias p2
-    when (equal_module_paths env p1 subst p2) ->
-      Ok (Tcoerce_none, orig_shape)
-
-  | Mty_transparent (_p1, Some _), _ ->
-      failwith "[Transparent ascription step 2]"
-
-  (* Aliases [module X = P1] can be downgraded to the (strengthened) signature
-     of [P1], dropping the aliasing information *)
-  | Mty_static_alias p1, _
-  | Mty_transparent (p1, None), _ -> begin
-      begin match expand_module_alias ~strengthen:false env p1 with
-      | Error e -> Error (Error.Mt_core e)
-      | Ok mty1 ->
-         match strengthened_modtypes ~core ~direction ~loc ~aliasable:true
-                 env subst mty1 p1 mty2 orig_shape
-         with
-         | Ok _ as x -> x
-         | Error reason -> begin
-             match mty2 with
-             | Mty_static_alias _ | Mty_transparent _ ->
-                Error Error.(Mt_core Incompatible_aliases)
-             | _ ->
-                Error (Error.After_alias_expansion reason)
-           end
-      end
-    end
-
+  (* Named module types (inlining) *)
   | (Mty_ident p1, Mty_ident p2) ->
       let p1 = Env.normalize_modtype_path env p1 in
       let p2 = Env.normalize_modtype_path env (Subst.modtype_path subst p2) in
-      if Path.same p1 p2 then Ok (Tcoerce_none, orig_shape)
+      if Path.same p1 p2 then
+        (* Short path if module types resolve to the same modtype path *)
+        Ok (Tcoerce_none, orig_shape)
       else
         begin match expand_modtype_path env p1, expand_modtype_path env p2 with
         | Some mty1, Some mty2 ->
@@ -585,6 +551,80 @@ and try_modtypes ~core ~direction ~loc env subst mty1 mty2 orig_shape =
           | _ -> Error Error.(Mt_core Not_an_identifier)
           end
       end
+
+  (* Static aliases (equivalent case) *)
+  | Mty_static_alias p1, Mty_static_alias p2
+    when (equal_module_paths env p1 subst p2) ->
+      Ok (Tcoerce_none, orig_shape)
+
+  (* Static alias (downgrade of dynamic alias) *)
+  | Mty_transparent (p1, _), Mty_static_alias p2
+    when (equal_module_paths env p1 subst p2) ->
+      Ok (Tcoerce_none, orig_shape)
+
+  (* Static aliases (downgrade) *)
+  | Mty_static_alias p1, _ -> begin
+      (* Aliases [module X = P1] can be reified to the (strengthened) signature
+         of [P1], dropping the aliasing information *)
+      begin match expand_module_alias ~strengthen:true env p1 with
+      | Error e -> Error (Error.Mt_core e)
+      | Ok mty1 ->
+          match strengthened_modtypes ~core ~direction ~loc ~aliasable:true
+                  env subst mty1 p1 mty2 orig_shape
+          with
+          | Ok _ as x -> x
+          | Error reason -> begin
+              match mty2 with
+              | Mty_static_alias _ | Mty_transparent _ ->
+                  Error Error.(Mt_core Incompatible_aliases)
+              | _ ->
+                  Error (Error.After_alias_expansion reason)
+            end
+      end
+    end
+
+  (* Transparent signatures - with equal paths *)
+  | Mty_transparent (p1, mty1_opt), Mty_transparent (p2, mty2_opt)
+    when (equal_module_paths env p1 subst p2) -> begin
+      match mty1_opt, mty2_opt with
+      | None, None -> Ok (Tcoerce_none, orig_shape)
+      | None, Some mty2 ->
+          (* As path equivalence can go through transparent signatures, we need
+             to recheck subtyping, even if it was already done when checking
+             wellformedness of [mty2] *)
+          begin
+          match expand_module_alias ~strengthen:true env p1 with
+          | Error e -> Error (Error.Mt_core e)
+          | Ok mty1 ->
+              try_modtypes ~core ~direction ~loc env subst mty1 mty2 orig_shape
+        end
+      | Some mty1, None -> begin
+          (* No need to strengthen on the right hand side of subtyping *)
+          match expand_module_alias ~strengthen:false env p2 with
+          | Error e -> Error (Error.Mt_core e)
+          | Ok mty2 ->
+              try_modtypes ~core ~direction ~loc env subst mty1 mty2 orig_shape
+        end
+      | Some mty1, Some mty2 ->
+          try_modtypes ~core ~direction ~loc env subst mty1 mty2 orig_shape
+      end
+
+  (* Transparent signature - downgrade (without associated signature) *)
+  | Mty_transparent (p1, None), _ -> begin
+      match expand_module_alias ~strengthen:true env p1 with
+      | Error e -> Error (Error.Mt_core e)
+      | Ok mty1 ->
+          try_modtypes ~core ~direction ~loc env subst
+            (Mty_transparent(p1, Some mty1)) mty2 orig_shape
+    end
+
+  (* Transparent signature - downgrade (with associated signature) *)
+  | Mty_transparent (_, Some mty1), _ ->
+      (* If no previous case matched, transparent signatures [(= P :> mty1)] can
+         be downgraded to [mty1], losing the alias information *)
+      try_modtypes ~core ~direction ~loc env subst mty1 mty2 orig_shape
+
+  (* Structural signatures *)
   | (Mty_signature sig1, Mty_signature sig2) ->
       begin match
         signatures ~core ~direction ~loc env subst sig1 sig2 orig_shape
@@ -592,6 +632,8 @@ and try_modtypes ~core ~direction ~loc env subst mty1 mty2 orig_shape =
       | Ok _ as ok -> ok
       | Error e -> Error (Error.Signature e)
       end
+
+  (* Functors *)
   | Mty_functor (param1, res1), Mty_functor (param2, res2) ->
       let cc_arg, env, subst =
         let direction = Directionality.negate direction in
@@ -642,6 +684,8 @@ and try_modtypes ~core ~direction ~loc env subst mty1 mty2 orig_shape =
       | Ok _, Error res ->
           Error Error.(Functor (Result res))
       end
+
+  (* Error cases *)
   | Mty_functor _, _
   | _, Mty_functor _ ->
      Error.functor_params
