@@ -77,12 +77,20 @@ Line 4, characters 30-54:
 Error: This transparent signature is invalid: the signature of "X0"
        is not a subtype of the provided signature:
        Modules do not match:
-         sig type t = X0.t = A | B end
+         (= X0 :> sig type t = X0.t = A | B end)
        is not included in
          sig type u end
        The type "u" is required but not provided
 |}]
+
+(* Inference and functors *)
+module X0 = struct end
+module F(Y: (= X0 :> _)) = Y
+[%%expect{|
+module X0 : sig end
+module F : (Y : (= X0 :> _)) -> (= X0 :> _)
 |}]
+
 
 (** 3. Subtyping *)
 
@@ -101,19 +109,7 @@ module TestSub : sig module X1 = X0 [@@dynamic_alias] end =
   struct module X1 = X0 [@@static_alias] end
 [%%expect{|
 module X0 : sig end
-Line 3, characters 2-44:
-3 |   struct module X1 = X0 [@@static_alias] end
-      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-Error: Signature mismatch:
-       Modules do not match:
-         sig module X1 = X0 end
-       is not included in
-         sig module X1 : (= X0 :> _) end
-       In module "X1":
-       Modules do not match:
-         (module X0) [@static_alias]
-       is not included in
-         (= X0 :> _)
+module TestSub : sig module X1 : (= X0 :> _) end
 |}]
 
 (* Dynamic aliases are a subtype of other dynamic aliases with equivalent
@@ -194,6 +190,129 @@ val sub_test_stat : (module SStat1) -> (module SStat2) = <fun>
 |}]
 
 
+(* Using named module types *)
+module X0 = struct type t type u end
+module type S1 = (= X0 :> sig type t type u end)
+module M  : (= X0 :> sig type t type u end) = X0 [@dynamic_alias]
+module M' : S1 = X0 [@dynamic_alias] (* should be the same as above *)
+[%%expect{|
+module X0 : sig type t type u end
+module type S1 = (= X0 :> sig type t = X0.t type u = X0.u end)
+module M : (= X0 :> sig type t = X0.t type u = X0.u end)
+module M' : S1
+|}]
+
+
+(* Chains of transparent signatures *)
+module X0 = struct end
+module X1 : (= X0 :> _) = X0 [@dynamic_alias]
+module X2 : (= X1 :> (= X0 :> _)) = X1 [@dynamic_alias]
+module X2': (= X1 :> (= X0 :> _)) = X0 [@dynamic_alias]
+[%%expect{|
+module X0 : sig end
+module X1 : (= X0 :> _)
+module X2 : (= X1 :> sig end)
+module X2' : (= X1 :> sig end)
+|}]
+
+
+(* Subtyping tests with explicit ascriptions - simple case *)
+module X0 = struct end
+module X1 : (= X0 :> _ ) = X0 [@dynamic_alias]
+module X2 : (= X1 :> sig end ) = X0 [@dynamic_alias]
+module X3 : (= X2 :> sig end ) = X1 [@dynamic_alias]
+module X4 : (= X3 :> _ ) = X3 [@dynamic_alias]
+[%%expect {|
+module X0 : sig end
+module X1 : (= X0 :> _)
+module X2 : (= X1 :> sig end)
+module X3 : (= X2 :> sig end)
+module X4 : (= X3 :> _)
+|}]
+
+(* Subtyping tests with explicit ascriptions - chains of ascriptions *)
+module X0 = struct end
+module X1 = X0 [@dynamic_alias]
+module X2 = X0 [@dynamic_alias]
+module X3 : (= X2 :> (= X1 :> (= X2 :> _)) ) = X0 [@dynamic_alias]
+module X4 : (= X1 :> (= X1 :> (= X2 :> _)) ) = X1 [@dynamic_alias]
+module X5 : (= X0 :> (= X1 :> (= X2 :> _)) ) = X2 [@dynamic_alias]
+[%%expect {|
+module X0 : sig end
+module X1 : (= X0 :> _)
+module X2 : (= X0 :> _)
+module X3 : (= X2 :> sig end)
+module X4 : (= X1 :> sig end)
+module X5 : (= X0 :> sig end)
+|}]
+
+(* Subtyping tests with explicit ascriptions - with some types *)
+module X0 = struct type t end
+module X1 : (= X0 :> _ ) = X0 [@dynamic_alias]
+module X2 : (= X0 :> sig type t end ) = X0 [@dynamic_alias]
+module X3 : (= X0 :> sig type t = X0.t end ) = X1 [@dynamic_alias]
+module X4 : (= X0 :> sig type t = X3.t end ) = X1 [@dynamic_alias]
+[%%expect {|
+module X0 : sig type t end
+module X1 : (= X0 :> _)
+module X2 : (= X0 :> sig type t = X0.t end)
+module X3 : (= X0 :> sig type t = X0.t end)
+module X4 : (= X0 :> sig type t = X3.t end)
+|}]
+
+
+(* Subtyping : (=P :> _) < (=P :> S) and (= P :> S) < (=P :> _)*)
+module X0 = struct type t end
+module TestSub
+    (Y: (= X0 :> sig type t end)) : (= X0 :> _) = Y
+module TestSub'
+    (Y: (= X0 :> _)) : (= X0 :> sig type t end) = Y
+[%%expect{|
+module X0 : sig type t end
+module TestSub : (Y : (= X0 :> sig type t = X0.t end)) -> (= X0 :> _)
+module TestSub' : (Y : (= X0 :> _)) -> (= X0 :> sig type t = X0.t end)
+|}]
+
+
+(* Subtyping: when S1 < S2, (=P :> S1) < (=P :> S2)*)
+module X0 = struct type t type u end
+module type S1 = (= X0 :> _)
+module type S2 = (= X0 :> _)
+module TestSub (Y: S1) : sig module Z : S2 end = struct module Z = Y end
+module type S1 = (= X0 :> sig type t type u end)
+module type S2 = (= X0 :> sig type t end)
+module TestSub (Y: S1) : S2 = Y
+[%%expect{|
+module X0 : sig type t type u end
+module type S1 = (= X0 :> _)
+module type S2 = (= X0 :> _)
+module TestSub : (Y : S1) -> sig module Z : S2 end
+module type S1 = (= X0 :> sig type t = X0.t type u = X0.u end)
+module type S2 = (= X0 :> sig type t = X0.t end)
+module TestSub : (Y : S1) -> S2
+|}]
+
+
+(** Include a transparent signature *)
+module X0 = struct type t = A | B let x = A end
+module X1 : (= X0 :> _ ) = X0 [@dynamic_alias]
+module X2 = struct include X1 let y : X0.t = x end
+[%%expect {|
+module X0 : sig type t = A | B val x : t end
+module X1 : (= X0 :> _)
+module X2 : sig type t = X0.t = A | B val x : t val y : X0.t end
+|}]
+
+(* Transparent ascription on module expressions *)
+module X0 = struct type t = A | B let x = A end
+module X1 = (X0: (=X0 :> sig type t end))
+module X2 = (X0: (=X0 :> sig end))
+[%%expect {|
+module X0 : sig type t = A | B val x : t end
+module X1 : (= X0 :> sig type t = X0.t end)
+module X2 : (= X0 :> sig end)
+|}]
+
 (** Invalid attributes throw an error. We test that the [@dynamic_alias]
    attribute throws an error if used:
 
@@ -233,4 +352,17 @@ Line 3, characters 14-16:
                   ^^
 Error: Functor arguments and recursive modules (within the
        recursive definition), such as "X0", cannot be aliased
+|}]
+
+
+(* 4. Miscellaneous *)
+
+(* Module type of *)
+module X = struct type t end
+module Y = struct module A = X module B = X [@@dynamic_alias] end (* WRONG *)
+module type T = module type of Y
+[%%expect {|
+module X : sig type t end
+module Y : sig module A = X module B : (= X :> _) end
+module type T = sig module A = X module B = X end
 |}]

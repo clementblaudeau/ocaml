@@ -30,16 +30,16 @@ Error: Signature mismatch:
        ...
        In module "B":
        Modules do not match:
-         sig
-           type a = B.a
-           and b = B.b
-           and c = B.c
-           and d = B.d
-           and e = B.e
-           and f = B.f
-           and g = B.g
-           and h = B.h
-         end
+         (= B :> sig
+                   type a = B.a
+                   and b = B.b
+                   and c = B.c
+                   and d = B.d
+                   and e = B.e
+                   and f = B.f
+                   and g = B.g
+                   and h = B.h
+                 end)
        is not included in
          (module A) [@static_alias]
 |}]
@@ -78,16 +78,16 @@ Error: Signature mismatch:
        ...
        At position "module type B = sig module C : <here> end"
        Modules do not match:
-         sig
-           type a = C.a
-           and b = C.b
-           and c = C.c
-           and d = C.d
-           and e = C.e
-           and f = C.f
-           and g = C.g
-           and h = C.h
-         end
+         (= C :> sig
+                   type a = C.a
+                   and b = C.b
+                   and c = C.c
+                   and d = C.d
+                   and e = C.e
+                   and f = C.f
+                   and g = C.g
+                   and h = C.h
+                 end)
        is not included in
          (module A) [@static_alias]
 |}]

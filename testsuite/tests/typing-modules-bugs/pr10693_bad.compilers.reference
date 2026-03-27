@@ -8,7 +8,7 @@ Error: Signature mismatch:
          S
        In module M:
        Modules do not match:
-         Dep -> S
+         (= M :> Dep -> S)
        is not included in
          (X : Dep) ->
            sig
@@ -25,11 +25,11 @@ Error: Signature mismatch:
          end
        In module M.M:
        Modules do not match:
-         (X : Dep) ->
-           sig
-             val x : X.t option
-             module M : (Y : Dep) -> sig val x : X.t option end
-           end
+         (= M :> (X : Dep) ->
+                   sig
+                     val x : X.t option
+                     module M : (Y : Dep) -> sig val x : X.t option end
+                   end)
        is not included in
          (Y : Dep) -> sig val x : X.t option end
        In module M.M:

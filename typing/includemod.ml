@@ -740,12 +740,9 @@ and strengthened_modtypes ~core ~direction ~loc ~aliasable env
   | Mty_ident p1, Mty_ident p2 when equal_modtype_paths env p1 subst p2 ->
       Ok (Tcoerce_none, shape)
   | _, _ ->
-      let fully_strengthened_mty1 =
-        let strengthened_mty1 = Mtype.strengthen ~aliasable env mty1 path1 in
-        if ~aliasable then
-          Mty()
-
-      modtypes ~core ~direction ~loc env subst mty1 mty2 shape
+      let mty1_strengthen =
+        Mtype.strengthen ~aliasable ~alias:true env mty1 path1 in
+      modtypes ~core ~direction ~loc env subst mty1_strengthen mty2 shape
 
 and strengthened_module_decl ~core ~loc ~aliasable ~direction env
     subst md1 path1 md2 shape =
@@ -1151,7 +1148,9 @@ let check_functor_application_in_path
       if errors then
         let prepare_arg (arg_path, arg_mty) =
           let aliasable = Env.is_aliasable arg_path env in
-          let smd = Mtype.strengthen ~aliasable env arg_mty arg_path in
+          let smd =
+            Mtype.strengthen ~aliasable ~alias:false env arg_mty arg_path in
+            (* JUSTIFY THIS *)
           (Error.Named arg_path, smd)
         in
         let mty_f = (Env.find_module f0_path env).md_type in

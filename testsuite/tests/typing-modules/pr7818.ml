@@ -35,9 +35,10 @@ end;;
 module Make1 :
   (T' : sig
           module Term0 : Termsig.Term0.S
-          module T : sig module Id : sig end end
+          module T : sig module Id : (= Term0.Id :> _) end
         end)
-    -> sig module T : sig module Id : sig end val u : int end end
+    ->
+    sig module T : sig module Id : (= T'.Term0.Id :> _) val u : int end end
 |}]
 
 module Make2 (T' : Termsig.Term.S) = struct
@@ -51,11 +52,12 @@ end;;
 module Make2 :
   (T' : sig
           module Term0 : Termsig.Term0.S
-          module T : sig module Id : sig end end
+          module T : sig module Id : (= Term0.Id :> _) end
         end)
     ->
     sig
-      module T : sig module Id : sig end module Id2 = Id val u : int end
+      module T :
+        sig module Id : (= T'.Term0.Id :> _) module Id2 = Id val u : int end
     end
 |}]
 
@@ -71,11 +73,12 @@ end;;
 module Make3 :
   (T' : sig
           module Term0 : Termsig.Term0.S
-          module T : sig module Id : sig end end
+          module T : sig module Id : (= Term0.Id :> _) end
         end)
     ->
     sig
-      module T : sig module Id : sig end module Id2 = Id val u : int end
+      module T :
+        sig module Id : (= T'.Term0.Id :> _) module Id2 = Id val u : int end
     end
 |}]
 
@@ -95,9 +98,9 @@ module type S =
 module Make1 :
   (T' : sig
           module Term0 : sig module Id : sig end end
-          module T : sig module Id : sig end end
+          module T : sig module Id : (= Term0.Id :> _) end
         end)
-    -> sig module Id : sig end module Id2 = Id end
+    -> sig module Id : (= T'.Term0.Id :> _) module Id2 = Id end
 |}]
 
 module Make2 (T' : S) : sig module Id : sig end module Id2 = Id end
@@ -125,11 +128,12 @@ end;;
 module Make3 :
   (T' : sig
           module Term0 : sig module Id : sig end end
-          module T : sig module Id : sig end end
+          module T : sig module Id : (= Term0.Id :> _) end
         end)
     ->
     sig
-      module T : sig module Id : sig end module Id2 = Id val u : int end
+      module T :
+        sig module Id : (= T'.Term0.Id :> _) module Id2 = Id val u : int end
     end
 |}]
 
@@ -138,11 +142,8 @@ module M = Make1 (struct module Term0 =
   struct module Id = struct let x = "a" end end module T = Term0 end);;
 M.Id.x;;
 [%%expect{|
-module M : sig module Id : sig end module Id2 = Id end
-Line 3, characters 0-6:
-3 | M.Id.x;;
-    ^^^^^^
-Error: Unbound value "M.Id.x"
+module M : sig module Id : sig val x : string end module Id2 = Id end
+- : string = "a"
 |}]
 
 
@@ -178,17 +179,18 @@ module type S =
 module Make1 :
   (T' : sig
           module Term0 : sig module Id : sig end end
-          module T : sig module Id : sig end end
+          module T : sig module Id : (= Term0.Id :> _) end
           type t = MkT(T).t
         end)
-    -> sig module Id : sig end module Id2 = Id type t = T'.t end
+    -> sig module Id : (= T'.Term0.Id :> _) module Id2 = Id type t = T'.t end
 module IS :
   sig
     module Term0 : sig module Id : sig val x : string end end
     module T = Term0
     type t = MkT(T).t
   end
-module M : sig module Id : sig end module Id2 = Id type t = IS.t end
+module M :
+  sig module Id : (= IS.Term0.Id :> _) module Id2 = Id type t = IS.t end
 |}]
 
 

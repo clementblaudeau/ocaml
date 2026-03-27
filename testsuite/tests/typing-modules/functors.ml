@@ -959,7 +959,7 @@ Error: Signature mismatch:
          end
        In module "B":
        Modules do not match:
-         sig module C : (= B.C :> _) end
+         (= B :> sig module C : (= B.C :> _) end)
        is not included in
          sig
            module C :
@@ -977,7 +977,7 @@ Error: Signature mismatch:
          end
        In module "B.C":
        Modules do not match:
-         sig module D : (= B.C.D :> _) end
+         (= B.C :> _)
        is not included in
          sig
            module D :
@@ -992,7 +992,7 @@ Error: Signature mismatch:
          end
        In module "B.C.D":
        Modules do not match:
-         sig module E : (= B.C.D.E :> _) end
+         (= B.C.D :> _)
        is not included in
          sig
            module E :
@@ -1004,7 +1004,7 @@ Error: Signature mismatch:
          end
        In module "B.C.D.E":
        Modules do not match:
-         sig module F : (= B.C.D.E.F :> _) end
+         (= B.C.D.E :> _)
        is not included in
          sig
            module F :
@@ -2042,13 +2042,13 @@ Error: The functor application "Set.Make(Set)(A)" is ill-typed.
           is not included in
             Set.OrderedType
           Modules do not match:
-            sig
-              module type OrderedType = Set.OrderedType
-              module type S = Set.S
-              module Make : (= Set.Make :> _)
-            end
+            (= Set :> sig
+                        module type OrderedType = Set.OrderedType
+                        module type S = Set.S
+                        module Make : (= Set.Make :> _)
+                      end)
           is not included in
-            Set.OrderedType
+            sig type t val compare : t -> t -> int end
           The type "t" is required but not provided
           File "set.mli", line 52, characters 4-10: Expected declaration
           The value "compare" is required but not provided
@@ -2139,7 +2139,7 @@ Error: Signature mismatch:
        is not included in
          sig module F : empty -> empty end
        In module "F":
-       Modules do not match: a is not included in empty -> empty
+       Modules do not match: (= F :> a) is not included in empty -> empty
 |}]
 
 (** Incorrect hint: the compatibility check consider that [X.T] can not be equal
