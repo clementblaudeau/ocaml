@@ -524,7 +524,7 @@ val fold_cltypes:
 
 
 (** Utilities *)
-val scrape_alias: t -> module_type -> module_type
+val scrape_alias : t -> allow_transparent:bool -> module_type -> module_type
 val check_value_name: string -> Location.t -> unit
 
 val print_address : Format.formatter -> address -> unit

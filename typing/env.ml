@@ -1605,35 +1605,37 @@ let find_shadowed_types path env =
        (fun env -> env.types) (fun comps -> comps.comp_types) path env)
 
 (* Expand manifest module type names at the top of the given module type *)
-
-let rec scrape_alias env ?path mty =
+let rec scrape_alias env ~allow_transparent ?path mty =
   let open Subst.Lazy in
-  match mty, path with
-    MtyL_ident p, _ ->
+  match mty, path, allow_transparent with
+    MtyL_ident p, _, _ ->
       begin try
-        scrape_alias env (find_modtype_expansion_lazy p env) ?path
+        scrape_alias env ~allow_transparent
+          (find_modtype_expansion_lazy p env) ?path
       with Not_found ->
         mty
       end
-  | MtyL_static_alias path, _ ->
+  | MtyL_static_alias path, _, _ ->
       begin try
-        scrape_alias env ((find_module_lazy path env).mdl_type) ~path
-      with Not_found ->
-        (*Location.prerr_warning Location.none
-          (Warnings.No_cmi_file (Path.name path));*)
-        mty
-      end
-  | MtyL_transparent (path, None), _ ->
-      begin try
-        scrape_alias env ((find_module_lazy path env).mdl_type) ~path
+        scrape_alias env ~allow_transparent
+          ((find_module_lazy path env).mdl_type) ~path
       with Not_found ->
         (*Location.prerr_warning Location.none
           (Warnings.No_cmi_file (Path.name path));*)
         mty
       end
-  | MtyL_transparent (_, Some(mty)), _ ->
-      scrape_alias env ?path mty
-  | mty, Some path ->
+  | MtyL_transparent (path, None), _, false ->
+      begin try
+        scrape_alias env ~allow_transparent:false
+          ((find_module_lazy path env).mdl_type) ~path
+      with Not_found ->
+        (*Location.prerr_warning Location.none
+          (Warnings.No_cmi_file (Path.name path));*)
+        mty
+      end
+  | MtyL_transparent (path, Some(mty)), _, false ->
+      scrape_alias env ~allow_transparent:false ~path mty
+  | mty, Some path, _ ->
       !strengthen ~aliasable:true env mty path
   | _ -> mty
 
@@ -1716,7 +1718,7 @@ let module_declaration_address env id (md: Subst.Lazy.module_decl) =
 let rec components_of_module_maker
           {cm_env; cm_prefixing_subst;
            cm_path; cm_addr; cm_mty; cm_shape} : _ result =
-  match scrape_alias cm_env cm_mty with
+  match scrape_alias cm_env cm_mty ~allow_transparent:false with
     MtyL_signature sg ->
       let c =
         { comp_values = NameMap.empty;
@@ -2154,8 +2156,6 @@ and store_cltype id desc shape env =
     cltypes = IdTbl.add id cltda env.cltypes;
     summary = Env_cltype(env.summary, id, desc) }
 
-let scrape_alias env mty = scrape_alias env mty
-
 (* Compute the components of a functor application in a path. *)
 
 let components_of_functor_appl ~loc ~f_path ~f_comp ~arg env =
@@ -2276,8 +2276,11 @@ let add_local_constraint path info env =
     local_constraints = Path.Map.add path info env.local_constraints }
 
 (* Non-lazy version of scrape_alias *)
-let scrape_alias t mty =
-  mty |> Subst.Lazy.of_modtype |> scrape_alias t |> Subst.Lazy.force_modtype
+let scrape_alias t ~allow_transparent mty =
+  mty
+  |> Subst.Lazy.of_modtype
+  |> scrape_alias t ~allow_transparent
+  |> Subst.Lazy.force_modtype
 
 (* Insertion of bindings by name *)
 

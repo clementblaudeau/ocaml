@@ -740,7 +740,11 @@ and strengthened_modtypes ~core ~direction ~loc ~aliasable env
   | Mty_ident p1, Mty_ident p2 when equal_modtype_paths env p1 subst p2 ->
       Ok (Tcoerce_none, shape)
   | _, _ ->
-      let mty1 = Mtype.strengthen ~aliasable env mty1 path1 in
+      let fully_strengthened_mty1 =
+        let strengthened_mty1 = Mtype.strengthen ~aliasable env mty1 path1 in
+        if ~aliasable then
+          Mty()
+
       modtypes ~core ~direction ~loc env subst mty1 mty2 shape
 
 and strengthened_module_decl ~core ~loc ~aliasable ~direction env

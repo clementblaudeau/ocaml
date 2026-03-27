@@ -122,14 +122,20 @@ and strengthen_lazy_decl ~aliasable env md p =
   let open Subst.Lazy in
   match md.mdl_type with
   | MtyL_static_alias _ -> md
-  | _ when aliasable -> {md with mdl_type = MtyL_transparent (p, None)}
+  | _ when aliasable ->
+      {md with mdl_type = MtyL_transparent (p, None)} (* JUSTIFY THIS *)
   | mty -> {md with mdl_type = strengthen_lazy ~aliasable env mty p}
 
 let () = Env.strengthen := strengthen_lazy
 
-let strengthen ~aliasable env mty p =
-  let mty = strengthen_lazy ~aliasable env (Subst.Lazy.of_modtype mty) p in
-  Subst.Lazy.force_modtype mty
+let strengthen ~aliasable ~alias env mty path =
+  let mty =
+    strengthen_lazy ~aliasable env (Subst.Lazy.of_modtype mty) path
+    |> Subst.Lazy.force_modtype in
+  match mty, (alias && aliasable) with
+  | Mty_transparent(_,_), _
+  | _, false -> mty
+  | _, true -> Mty_transparent(path, Some(mty))
 
 let strengthen_decl ~aliasable env md p =
   let md = strengthen_lazy_decl ~aliasable env
@@ -169,7 +175,7 @@ let scrape_for_type_of env mty =
         with Not_found -> mty
       end
     | mty, Some path ->
-        strengthen ~aliasable:false env mty path
+        strengthen ~aliasable:false ~alias:false env mty path
     | _ -> mty
   in
   make_aliases_absent (loop env None mty)
@@ -484,17 +490,9 @@ let rec remove_aliases_mty env args mty =
       Mty_signature sg ->
         Mty_signature (remove_aliases_sig env args' sg)
     | Mty_static_alias _ ->
-        let mty' = Env.scrape_alias env mty in
+        let mty' = Env.scrape_alias ~allow_transparent:false env mty in
         if mty' = mty then mty
         else begin
-          args'.modified <- true;
-          remove_aliases_mty env args' mty'
-        end
-    | Mty_transparent _ ->
-        let mty' = Env.scrape_alias env mty in
-        if mty' = mty then begin
-          mty
-        end else begin
           args'.modified <- true;
           remove_aliases_mty env args' mty'
         end

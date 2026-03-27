@@ -29,9 +29,16 @@ val scrape_for_type_of:
 val freshen: scope:int -> module_type -> module_type
         (* Return an alpha-equivalent copy of the given module type
            where bound identifiers are fresh. *)
-val strengthen: aliasable:bool -> Env.t -> module_type -> Path.t -> module_type
+val strengthen:
+  aliasable:bool -> alias:bool -> Env.t -> module_type -> Path.t -> module_type
         (* Strengthen abstract type components relative to the
-           given path. *)
+            given path.
+
+            - [aliasable] indicates if the path is (statically) aliasable
+
+            - [alias] indicates if the returned signature can be itself a
+            dynamic alias
+        *)
 val strengthen_decl:
   aliasable:bool -> Env.t -> module_declaration -> Path.t -> module_declaration
 val nondep_supertype: Env.t -> Ident.t list -> module_type -> module_type

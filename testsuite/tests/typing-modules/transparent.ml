@@ -57,9 +57,11 @@ module X2 = X1 [@@dynamic_alias]
 module X3 = X2 [@@dynamic_alias]
 [%%expect{|
 module X0 : sig end
-module X1 = X0 [@@dynamic_alias]
-module X2 = X1 [@@dynamic_alias]
-module X3 = X2 [@@dynamic_alias]
+module X1 : (= X0 :> _)
+module X2 : (= X1 :> _)
+module X3 : (= X2 :> _)
+|}]
+
 (* Invalid signatures should be rejected *)
 module X0 = struct type t = A | B end
 module type Valid_same      = (= X0 :> sig type t = X0.t = A | B end)

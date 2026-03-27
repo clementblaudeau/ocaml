@@ -100,20 +100,18 @@ let rec path_concat head p =
 
 (* Extract a signature from a module type *)
 
-let rec extract_sig env loc mty =
-  match Env.scrape_alias env mty with
+let extract_sig env loc mty =
+  match Env.scrape_alias ~allow_transparent:false env mty  with
     Mty_signature sg -> sg
     (* The signature of unlinked modules aliases (when using
        [-no-alias-deps]) cannot be extracted *)
   | Mty_static_alias path
-  | Mty_transparent (path, None) ->
+  | Mty_transparent (path, _) ->
      raise(Error(loc, env, Cannot_scrape_alias path))
-  | Mty_transparent (_, Some mty) ->
-      extract_sig env loc mty
   | _ -> raise(Error(loc, env, Signature_expected))
 
 let extract_sig_open env loc mty =
-  match Env.scrape_alias env mty with
+  match Env.scrape_alias ~allow_transparent:false env mty with
     Mty_signature sg -> sg
     (* The signature of unlinked modules aliases (when using
        [-no-alias-deps]) cannot be extracted *)
@@ -320,7 +318,7 @@ let retype_applicative_functor_type ~loc env funct arg =
   let mty_functor = (Env.find_module funct env).md_type in
   let mty_arg = (Env.find_module arg env).md_type in
   let mty_param =
-    match Env.scrape_alias env mty_functor with
+    match Env.scrape_alias ~allow_transparent:true env mty_functor with
     | Mty_functor (Named (_, mty_param), _) -> mty_param
     | _ -> assert false (* could trigger due to MPR#7611 *)
   in
@@ -1540,15 +1538,19 @@ and transl_modtype_aux env smty =
      mkmty (Tmty_transparent (path, lid)) (Mty_transparent (path, None)) env loc
        smty.pmty_attributes
   | Pmty_transparent (lid, Some md) ->
+      (* Lookup the path its (strengthened) signature *)
+      let path, md_path = Env.lookup_module ~loc lid.txt env in
+      let aliasable = Env.is_aliasable path env in
+      let mty_path =
+        Mtype.strengthen ~aliasable ~alias:true env md_path.md_type path in
       (* Translate the user-provided signature *)
       let { mty_type } = transl_modtype env md in
-      (* Lookup the path and the signature of the module at that path *)
-      let path, md_path = Env.lookup_module ~loc lid.txt env in
       (* Check that the user-provided signature is a supertype of the
          module's strengthened signature *)
       let () =
-        match Includemod.check_modtype_inclusion ~loc env
-                md_path.md_type path mty_type with
+        match
+          Includemod.check_modtype_inclusion ~loc env mty_path path mty_type
+        with
         | None -> ()
         | Some explanation ->
             raise (Error(loc, env,
@@ -1556,7 +1558,11 @@ and transl_modtype_aux env smty =
       in
       (* Strengthen the user-provided signature *)
       let mty_type_str =
-        Mtype.strengthen ~aliasable:false env mty_type path in
+        Mtype.strengthen ~aliasable:false ~alias:false env mty_type path |>
+        (* simplify chains of ascriptions, e.g. [(= P1 :> (= P2 :> _))] into [(=
+           P1 :> _)]*)
+        Env.scrape_alias env ~allow_transparent:false
+      in
       mkmty
         (Tmty_transparent (path, lid))
         (Mty_transparent (path, Some mty_type_str))
@@ -2218,7 +2224,7 @@ let check_recmodule_inclusion env bindings =
     match id with
     | None -> mty
     | Some id ->
-        Mtype.strengthen ~aliasable:false env mty
+        Mtype.strengthen ~aliasable:false ~alias:false env mty
           (Subst.module_path s (Pident id))
   in
 
@@ -2507,7 +2513,7 @@ and type_module_aux ~alias ~strengthen ~mode anchor env smod =
             (Env.find_module path env).md_type
         in
         if not alias then
-          pre_md (Env.scrape_alias env mty), path_shape
+          pre_md (Env.scrape_alias ~allow_transparent:true env mty), path_shape
         else
           pre_md mty, path_shape
   | Pmod_structure sstr ->
@@ -2656,7 +2662,9 @@ and type_application loc ~strengthen ~mode env smod =
 
 and type_one_application ~ctx:(apply_loc,sfunct,md_f,args)
     ~mode env (funct, funct_shape) app_view =
-  match Env.scrape_alias env funct.mod_type with
+  match Env.scrape_alias
+          ~allow_transparent:false (* TO CHANGE *)
+          env funct.mod_type with
   | Mty_functor (Unit, mty_res) ->
       begin match app_view.arg with
         | None -> ()
