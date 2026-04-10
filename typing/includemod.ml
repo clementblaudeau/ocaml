@@ -621,7 +621,8 @@ and try_modtypes ~core ~direction ~loc env subst mty1 mty2 orig_shape =
   (* Transparent signature - downgrade (with associated signature) *)
   | Mty_transparent (_, Some mty1), _ ->
       (* If no previous case matched, transparent signatures [(= P :> mty1)] can
-         be downgraded to [mty1], losing the alias information *)
+         be downgraded to [mty1], losing the alias information. There is no need
+         to strengthen mty1, it should already be (by invariant) *)
       try_modtypes ~core ~direction ~loc env subst mty1 mty2 orig_shape
 
   (* Structural signatures *)

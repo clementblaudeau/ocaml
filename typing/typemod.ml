@@ -118,9 +118,8 @@ let extract_sig_open env loc mty =
   | Mty_static_alias path
   | Mty_transparent (path, None) ->
       raise(Error(loc, env, Cannot_scrape_alias path))
-  | Mty_transparent (_path, Some _) ->
-     (* Should return the associated signature, possibly strengthened by path *)
-     failwith "typemod.ml:extract_sig_open"
+  | Mty_transparent (_path, _) ->
+      failwith "scrape_alias should not return an alias signature"
   | mty -> raise(Error(loc, env, Structure_expected mty))
 
 (* Compute the environment after opening a module *)
@@ -1003,9 +1002,12 @@ let rec approx_modtype env smty =
            more paths than static aliasing, inference of an ambiguous alias
            always returns a static one *)
         Mty_static_alias path
-  | Pmty_transparent (_lid, _md) ->
-    (* should lookup [lid] and approximate [md] *)
-     failwith "typemod.ml:approx_modtype"
+  | Pmty_transparent (lid, md) ->
+      let path =
+        Env.lookup_module_path ~use:false ~load:false
+          ~loc:smty.pmty_loc lid.txt env in
+      let mty_opt = Option.map (approx_modtype env) md in
+      Mty_transparent(path, mty_opt)
   | Pmty_signature ssg ->
       Mty_signature(approx_sig env ssg)
   | Pmty_functor(param, sres) ->
@@ -2756,7 +2758,9 @@ and type_one_application ~ctx:(apply_loc,sfunct,md_f,args)
         mod_loc = app_loc },
       Shape.app ~arg:arg_shape funct_shape
     end
-  | Mty_static_alias path ->
+  | Mty_static_alias path
+  | Mty_transparent (path, _) ->
+      (* Can only happen in the presence of broken .cmi files *)
       raise(Error(app_view.f_loc, env, Cannot_scrape_alias path))
   | Mty_ident _ | Mty_signature _  ->
       let args = List.map simplify_app_summary args in
@@ -2766,7 +2770,6 @@ and type_one_application ~ctx:(apply_loc,sfunct,md_f,args)
         | _ -> Includemod.Anonymous_functor
       in
       raise(Includemod.Apply_error {loc=apply_loc;env;app_name;mty_f;args})
-  | Mty_transparent _ -> failwith "typemod.ml:type_one_application"
 
 and type_open_decl ?used_slot ?toplevel ~mode names env sod =
   Builtin_attributes.warning_scope sod.popen_attributes
