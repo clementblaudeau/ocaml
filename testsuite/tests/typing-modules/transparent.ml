@@ -303,6 +303,27 @@ module X1 : (= X0 :> _)
 module X2 : sig type t = X0.t = A | B val x : t val y : X0.t end
 |}]
 
+(* extract_sig_open: opening a transparent module with explicit sig should
+   work *)
+module X0 = struct type t = A | B let x = A end
+module X1 : (= X0 :> sig type t = X0.t = A | B val x : t end) =
+  X0 [@dynamic_alias]
+module X2 = struct
+  open X1
+  let y : t = x
+end
+module X3 = struct
+  include X0
+  let y : t = x
+end
+[%%expect {|
+module X0 : sig type t = A | B val x : t end
+module X1 : (= X0 :> sig type t = X0.t = A | B val x : t end)
+module X2 : sig val y : X1.t end
+module X3 : sig type t = X0.t = A | B val x : t val y : t end
+|}]
+
+
 (* Transparent ascription on module expressions *)
 module X0 = struct type t = A | B let x = A end
 module X1 = (X0: (=X0 :> sig type t end))
@@ -354,8 +375,59 @@ Error: Functor arguments and recursive modules (within the
        recursive definition), such as "X0", cannot be aliased
 |}]
 
+(* 4. Approximation *)
 
-(* 4. Miscellaneous *)
+(* Recursive transparent signatures are refused *)
+module rec X1 : (= X1 :> _) = struct end
+[%%expect {|
+Line 1, characters 16-27:
+1 | module rec X1 : (= X1 :> _) = struct end
+                    ^^^^^^^^^^^
+Error: This module type is recursive. This use of the recursive module "X1"
+       within its own definition makes the module type of "X1" depend on
+       itself. Such recursive definitions of module types are not allowed.
+|}]
+
+(* Non recursive transparent signatures are accepted *)
+module X0 = struct type t = A | B let x = A  end
+module rec X1 : (= X0 :> sig type t val x : t end ) = X2.X
+and X2 : sig module X : (= X0 :> _) end = struct module X = X0 [@@dynamic_alias] end
+[%%expect {|
+module X0 : sig type t = A | B val x : t end
+module rec X1 : (= X0 :> sig type t = X0.t val x : t end)
+and X2 : sig module X : (= X0 :> _) end
+|}]
+
+
+(* 5. Miscellaneous *)
+
+(* Transparent aliases of functors *)
+module F (X : sig type t end) = struct type u = X.t type v end
+module G = F [@@dynamic_alias]
+module X0 = struct type t end
+module X1 : (= X0 :> _ ) = X0 [@@dynamic_alias]
+module R = G(struct type t = int end)
+module S = G(X1)
+[%%expect {|
+module F : (X : sig type t end) -> sig type u = X.t type v end
+module G : (= F :> _)
+module X0 : sig type t end
+module X1 : (= X0 :> _)
+module R : sig type u = int type v end
+module S : sig type u = X1.t type v = F(X1).v end
+|}]
+
+(* Transparent signatures in functor parameters *)
+module X0 = struct type t = int end
+module F (Y : sig module A : (= X0 :> _) end) = struct
+  let f (x : Y.A.t) : X0.t = x
+end
+[%%expect {|
+module X0 : sig type t = int end
+module F :
+  (Y : sig module A : (= X0 :> _) end) -> sig val f : Y.A.t -> X0.t end
+|}]
+
 
 (* Module type of *)
 module X = struct type t end
@@ -365,4 +437,161 @@ module type T = module type of Y
 module X : sig type t end
 module Y : sig module A = X module B : (= X :> _) end
 module type T = sig module A = X module B = X end
+|}]
+
+(* Module type of with explicit transparent signature *)
+module X0 = struct type t end
+module Y = struct
+  module A : (= X0 :> sig type t end) = X0 [@dynamic_alias]
+end
+module type T = module type of Y
+[%%expect {|
+module X0 : sig type t end
+module Y : sig module A : (= X0 :> sig type t = X0.t end) end
+module type T = sig module A : (= X0 :> sig type t = X0.t end) end
+|}]
+
+
+(** 6. Error cases *)
+
+(* Non-alias cannot satisfy a transparent signature requirement *)
+module X0 = struct end
+module TestErr (Y : sig end) : (= X0 :> _) = Y
+[%%expect{|
+module X0 : sig end
+Line 5, characters 45-46:
+5 | module TestErr (Y : sig end) : (= X0 :> _) = Y
+                                                 ^
+Error: Signature mismatch:
+       Modules do not match: sig end is not included in (= X0 :> _)
+|}]
+
+(* Different paths: (= P1 :> _) is not a subtype of (= P2 :> _) *)
+module X0 = struct end
+module X1 = struct end
+module TestErr : (= X1 :> _) = X0 [@dynamic_alias]
+[%%expect{|
+module X0 : sig end
+module X1 : sig end
+Line 3, characters 31-33:
+3 | module TestErr : (= X1 :> _) = X0 [@dynamic_alias]
+                                   ^^
+Error: Signature mismatch:
+       Modules do not match: (= X0 :> _) is not included in (= X1 :> _)
+|}]
+
+(* Static alias with different path cannot satisfy transparent *)
+module X0 = struct end
+module X1 = struct end
+module TestErr : sig module A : (= X1 :> _) end =
+  struct module A = X0 end
+[%%expect{|
+module X0 : sig end
+module X1 : sig end
+Line 4, characters 2-26:
+4 |   struct module A = X0 end
+      ^^^^^^^^^^^^^^^^^^^^^^^^
+Error: Signature mismatch:
+       Modules do not match:
+         sig module A = X0 end
+       is not included in
+         sig module A : (= X1 :> _) end
+       In module "A":
+       Modules do not match:
+         (= A :> (module X0) [@static_alias])
+       is not included in
+         (= X1 :> _)
+|}]
+
+
+(** 7. Interactions *)
+
+(* First-class modules with transparent signatures *)
+module X0 = struct type t = int end
+module type S = (= X0 :> sig type t end)
+let pack (m : (module S)) = m
+let use (m : (module S)) =
+  let module M = (val m) in
+  (0 : M.t)
+[%%expect{|
+module X0 : sig type t = int end
+module type S = (= X0 :> sig type t = X0.t end)
+val pack : (module S) -> (module S) = <fun>
+val use : (module S) -> X0.t = <fun>
+|}]
+
+(* Transparent downgrade: type equalities from identity survive *)
+module X0 = struct type t = int end
+module X1 : (= X0 :> sig type t end) = X0 [@dynamic_alias]
+module TestDowngrade : sig type t = X0.t end = X1
+[%%expect{|
+module X0 : sig type t = int end
+module X1 : (= X0 :> sig type t = X0.t end)
+module TestDowngrade : sig type t = X0.t end
+|}]
+
+(* Include with explicit transparent signature *)
+module X0 = struct type t = A | B let x = A end
+module X1 : (= X0 :> sig type t = X0.t = A | B val x : t end) = X0 [@dynamic_alias]
+module X2 = struct include X1 let y : X0.t = x end
+[%%expect{|
+module X0 : sig type t = A | B val x : t end
+module X1 : (= X0 :> sig type t = X0.t = A | B val x : t end)
+module X2 : sig type t = X0.t = A | B val x : t val y : X0.t end
+|}]
+
+(* Functor returning a transparent signature *)
+module X0 = struct type t end
+module F (_ : sig end) : (= X0 :> _) = X0 [@dynamic_alias]
+module R = F (struct end)
+[%%expect{|
+module X0 : sig type t end
+Line 2, characters 39-41:
+2 | module F (_ : sig end) : (= X0 :> _) = X0 [@dynamic_alias]
+                                           ^^
+Error: Signature mismatch:
+       Modules do not match:
+         sig type t = X0.t end
+       is not included in
+         (= X0 :> _)
+Unexecuted phrases: 1 phrases did not execute due to an error
+|}]
+
+
+(** 8. remove_aliases_mty: transparent signatures survive in functor parameters *)
+
+(* Static alias whose target has a transparent signature in the functor param.
+   scrape_for_functor_arg resolves the static alias; the transparent signature
+   it finds underneath should be left alone and still work. *)
+module X0 = struct type t = int end
+module X1 = X0 [@@dynamic_alias]
+module Wrap = struct module A = X1 [@@dynamic_alias] end
+module F (Y : sig module W = Wrap end) = struct
+  type t = Y.W.A.t
+  let f (x : t) : X0.t = x
+end
+[%%expect{|
+module X0 : sig type t = int end
+module X1 : (= X0 :> _)
+module Wrap : sig module A : (= X1 :> _) end
+module F :
+  (Y : sig module W = Wrap end) -> sig type t = Y.W.A.t val f : t -> X0.t end
+|}]
+
+(* Transparent signature directly in a functor parameter should survive
+   scrape_for_functor_arg and remain usable inside the functor body *)
+module X0 = struct type t = int end
+module X1 = X0 [@@dynamic_alias]
+module F (Y : sig module A : (= X1 :> _) end) = struct
+  type t = Y.A.t
+  let f (x : t) : X0.t = x
+end
+module R = F (struct module A = X0 [@dynamic_alias] end)
+[%%expect{|
+module X0 : sig type t = int end
+module X1 : (= X0 :> _)
+module F :
+  (Y : sig module A : (= X1 :> _) end) ->
+    sig type t = Y.A.t val f : t -> X0.t end
+module R : sig type t = int val f : t -> X0.t end
 |}]
