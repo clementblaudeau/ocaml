@@ -426,6 +426,27 @@ static void record_ephe_marking_done (uintnat round)
   caml_plat_unlock(&ephe_lock);
 }
 
+/* Prepare to mark ephemerons by moving the ephemerons on the live
+   list to the todo list. This is needed since the live list may
+   contain ephemerons with unmarked keys, which need to be
+   cleaned. This code is executed exactly once per major cycle per
+   domain, using the [ephe_info->must_sweep_ephe] state as
+   a reminder. */
+static void prepare_for_ephe_sweeping(caml_domain_state *domain_state)
+{
+  domain_state->ephe_info->todo =
+    caml_ephe_list_append(
+      domain_state->ephe_info->todo,
+      domain_state->ephe_info->live);
+  domain_state->ephe_info->live = 0;
+
+  /* If the todo list is empty, then the ephemeron has no sweeping work
+   * to do. */
+  if (domain_state->ephe_info->todo == 0) {
+    (void)caml_atomic_counter_decr(&num_domains_to_ephe_sweep);
+  }
+}
+
 #define EPHE_MARK_DEFAULT false
 #define EPHE_MARK_FORCE_ALIVE true
 
@@ -2246,22 +2267,8 @@ mark_again:
       /* Ephemeron Sweeping */
 
       if (domain_state->ephe_info->must_sweep_ephe) {
-        /* Move the ephemerons on the live list to the todo list. This is
-           needed since the live list may contain ephemerons with unmarked
-           keys, which need to be cleaned. This code is executed exactly once
-           per major cycle per domain. */
         domain_state->ephe_info->must_sweep_ephe = 0;
-        domain_state->ephe_info->todo =
-          caml_ephe_list_append(
-            domain_state->ephe_info->todo,
-            domain_state->ephe_info->live);
-        domain_state->ephe_info->live = 0;
-
-        /* If the todo list is empty, then the ephemeron has no sweeping work
-         * to do. */
-        if (domain_state->ephe_info->todo == 0) {
-          (void)caml_atomic_counter_decr(&num_domains_to_ephe_sweep);
-        }
+        prepare_for_ephe_sweeping(domain_state);
       }
 
       if (domain_state->ephe_info->todo != 0) {
