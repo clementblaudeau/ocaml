@@ -347,6 +347,29 @@ static struct {
  * the lock. */
 static caml_plat_mutex ephe_lock = CAML_PLAT_MUTEX_INITIALIZER;
 
+/* Global (not per-domain) preparation work for ephemeron marking. */
+static void global_prepare_for_ephe_marking (int num_domains_in_stw) {
+  caml_atomic_counter_init(&ephe_round_info.num_domains_todo,
+                           num_domains_in_stw);
+  caml_atomic_counter_init(&ephe_round_info.round, 1);
+  caml_atomic_counter_init(&ephe_round_info.num_domains_done, 0);
+  caml_atomic_counter_init(&num_domains_to_ephe_sweep, 0);
+  /* Will be set to the correct number when switching to
+     [Phase_sweep_ephe] */
+}
+
+/* Prepare to mark ephemerons by making all 'live' ephes become 'todo' */
+static void prepare_for_ephe_marking(caml_domain_state *domain)
+{
+  CAMLassert(domain->ephe_info->todo == (value) NULL);
+  domain->ephe_info->todo = domain->ephe_info->live;
+  domain->ephe_info->live = (value) NULL;
+  domain->ephe_info->must_sweep_ephe = 0;
+  domain->ephe_info->round = 0;
+  domain->ephe_info->cursor.todop = NULL;
+  domain->ephe_info->cursor.round = 0;
+}
+
 /* Move to the next global ephemeron round. Called whenever any domain
  * finishes marking. */
 
@@ -388,18 +411,6 @@ static void ephe_todo_list_emptied (void)
   caml_plat_unlock(&ephe_lock);
 }
 
-/* Prepare to mark ephemerons by making all 'live' ephes become 'todo' */
-static void prepare_for_ephe_marking(caml_domain_state *domain)
-{
-  CAMLassert(domain->ephe_info->todo == (value) NULL);
-  domain->ephe_info->todo = domain->ephe_info->live;
-  domain->ephe_info->live = (value) NULL;
-  domain->ephe_info->must_sweep_ephe = 0;
-  domain->ephe_info->round = 0;
-  domain->ephe_info->cursor.todop = NULL;
-  domain->ephe_info->cursor.round = 0;
-}
-
 /* Record that a domain finished ephemeron marking for the given
  * ephemeron round, without adding anything to its mark stack. */
 
@@ -424,6 +435,16 @@ static void record_ephe_marking_done (uintnat round)
                caml_atomic_counter_value(&ephe_round_info.num_domains_todo));
   }
   caml_plat_unlock(&ephe_lock);
+}
+
+/* Global (not per-domain) preparation work for ephemeron sweeping. */
+static void global_prepare_for_ephe_sweeping (
+  int participant_count,
+  caml_domain_state** participating)
+{
+  caml_atomic_counter_init(&num_domains_to_ephe_sweep, participant_count);
+  for (int i = 0; i < participant_count; i++)
+    participating[i]->ephe_info->must_sweep_ephe = 1;
 }
 
 /* Prepare to mark ephemerons by moving the ephemerons on the live
@@ -1870,13 +1891,7 @@ static void cycle_major_heap_from_stw_single(
                work_counter_at_sweep_start);
   work_counter_min_before_mark = work_counter + caml_small_heap_limit;
   atomic_store(&caml_gc_mark_phase_requested, 0);
-  caml_atomic_counter_init(&ephe_round_info.num_domains_todo,
-                           num_domains_in_stw);
-  caml_atomic_counter_init(&ephe_round_info.round, 1);
-  caml_atomic_counter_init(&ephe_round_info.num_domains_done, 0);
-  caml_atomic_counter_init(&num_domains_to_ephe_sweep, 0);
-  /* Will be set to the correct number when switching to
-     [Phase_sweep_ephe] */
+  global_prepare_for_ephe_marking(num_domains_in_stw);
 
   caml_atomic_counter_init(&num_domains_to_final_update_first,
                            num_domains_in_stw);
@@ -2054,9 +2069,7 @@ static void stw_try_complete_gc_phase(
       caml_gc_phase = Phase_mark_final;
     } else if (is_complete_phase_mark_final()) {
       caml_gc_phase = Phase_sweep_ephe;
-      caml_atomic_counter_init(&num_domains_to_ephe_sweep, participant_count);
-      for (int i = 0; i < participant_count; i++)
-        participating[i]->ephe_info->must_sweep_ephe = 1;
+      global_prepare_for_ephe_sweeping(participant_count, participating);
     }
   }
 
