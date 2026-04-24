@@ -436,8 +436,7 @@ let retrieve_functor_params env mty =
         | Ok mty ->  retrieve_functor_params before env mty
         | Error _ -> { Error.params = List.rev before; res }
         end
-    | Mty_transparent (_p, Some _mty) as _res ->
-        failwith "retrieve_functor_params:439"
+    | Mty_transparent (_, Some mty) -> retrieve_functor_params before env mty
     | Mty_functor (p, res) -> retrieve_functor_params (p :: before) env res
     | Mty_signature _ as res -> { Error.params = List.rev before; res }
   in
@@ -1150,8 +1149,9 @@ let check_functor_application_in_path
         let prepare_arg (arg_path, arg_mty) =
           let aliasable = Env.is_aliasable arg_path env in
           let smd =
+            (* [~alias:false] No need to wrap the module type in a transparent
+               alias for the error message. *)
             Mtype.strengthen ~aliasable ~alias:false env arg_mty arg_path in
-            (* JUSTIFY THIS *)
           (Error.Named arg_path, smd)
         in
         let mty_f = (Env.find_module f0_path env).md_type in

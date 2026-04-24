@@ -123,7 +123,7 @@ and strengthen_lazy_decl ~aliasable env md p =
   match md.mdl_type with
   | MtyL_static_alias _ -> md
   | _ when aliasable ->
-      {md with mdl_type = MtyL_transparent (p, None)} (* JUSTIFY THIS *)
+      {md with mdl_type = MtyL_transparent (p, None)}
   | mty -> {md with mdl_type = strengthen_lazy ~aliasable env mty p}
 
 let () = Env.strengthen := strengthen_lazy
@@ -199,17 +199,7 @@ let rec nondep_mty env va ids mty =
           nondep_mty env va ids expansion
       | None -> mty
       end
-  | Mty_static_alias p ->
-      begin match Path.find_free_opt ids p with
-      | Some id ->
-          let expansion =
-            try Env.find_module p env
-            with Not_found ->
-              raise (Ctype.Nondep_cannot_erase id)
-          in
-          nondep_mty env va ids expansion.md_type
-      | None -> mty
-      end
+  | Mty_static_alias p
   | Mty_transparent (p, None) ->
       begin match Path.find_free_opt ids p with
       | Some id ->
@@ -221,8 +211,18 @@ let rec nondep_mty env va ids mty =
           nondep_mty env va ids expansion.md_type
       | None -> mty
       end
-  | Mty_transparent (_, Some _) ->
-      failwith "[Transparent ascription step 2] mtype.ml:218"
+  | Mty_transparent (p, Some mty) ->
+      (* check for avoidance in both p and mty *)
+      let nmty = nondep_mty env va ids mty in
+      begin match Path.find_free_opt ids p with
+      | None -> Mty_transparent(p, Some nmty)
+      | Some _ ->
+          let root = Env.normalize_module_path None env p in
+          begin match Path.find_free_opt ids root with
+          | None -> Mty_transparent(root, Some nmty)
+          | Some _ -> nmty (* downgrade, lose the alias *)
+          end
+      end
   | Mty_signature sg -> Mty_signature(nondep_sig env va ids sg)
   | Mty_functor(Unit, res) ->
       Mty_functor(Unit, nondep_mty env va ids res)

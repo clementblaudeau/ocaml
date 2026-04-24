@@ -2664,9 +2664,7 @@ and type_application loc ~strengthen ~mode env smod =
 
 and type_one_application ~ctx:(apply_loc,sfunct,md_f,args)
     ~mode env (funct, funct_shape) app_view =
-  match Env.scrape_alias
-          ~allow_transparent:false (* TO CHANGE *)
-          env funct.mod_type with
+  match Env.scrape_alias ~allow_transparent:false env funct.mod_type with
   | Mty_functor (Unit, mty_res) ->
       begin match app_view.arg with
         | None -> ()

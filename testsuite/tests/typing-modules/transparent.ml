@@ -595,3 +595,51 @@ module F :
     sig type t = Y.A.t val f : t -> X0.t end
 module R : sig type t = int val f : t -> X0.t end
 |}]
+
+
+(* nondep_mty: functor result contains a transparent signature with an
+   explicit sig, applied with an inline struct (no path) so nondep_supertype
+   is called and must recurse through Mty_transparent(_, Some _). *)
+module M = struct type t end
+module F (X : sig end) : sig module A : (= M :> sig type t end) end =
+  struct module A = M [@dynamic_alias] end
+module R = F (struct end)
+[%%expect{|
+module M : sig type t end
+module F : (X : sig end) -> sig module A : (= M :> sig type t = M.t end) end
+module R : sig module A : (= M :> sig type t = M.t end) end
+|}]
+
+
+(* retrieve_functor_params: applying a non-functor with transparent sig.
+   The error message path calls retrieve_functor_params on the module type,
+   which must handle Mty_transparent(_, Some _) without crashing. *)
+module X0 = struct type t end
+module X1 : (= X0 :> sig type t end) = X0 [@dynamic_alias]
+module R = X1 (struct end)
+[%%expect{|
+module X0 : sig type t end
+module X1 : (= X0 :> sig type t = X0.t end)
+Line 3, characters 11-26:
+3 | module R = X1 (struct end)
+               ^^^^^^^^^^^^^^^
+Error: The module "X1" is not a functor, it cannot be applied.
+|}]
+
+
+(* Avoidance through a local open: X1/X2 are bound in a local struct that is
+   opened, so they go out of scope at the end of [M]. Aliases [X3 = X1] and
+   [X4 = X2] must be rewritten to reference X0 directly, for both static and
+   dynamic aliases. *)
+module M = struct
+  module X0 = struct end
+  open (struct
+    module X1 = X0 [@static_alias]
+    module X2 = X0 [@dynamic_alias]
+  end)
+  module X3 = X1 [@static_alias]
+  module X4 = X2 [@dynamic_alias]
+end
+[%%expect{|
+module M : sig module X0 : sig end module X3 = X0 module X4 : (= X0 :> _) end
+|}]
