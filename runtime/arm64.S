@@ -108,21 +108,15 @@
 #if defined(FUNCTION_SECTIONS)
 /* Two sections, and matching symbols, caml_hot__code_begin and
    caml_hot__code_end, are used by OCamlFDO. These names are not OCaml
-   functions, and are hard-wired in OCamlFDO, but must also be present
-   in mangled form to interact properly with code-segments
-   mechanisms. */
+   functions, and are hard-wired in OCamlFDO. */
 
         TEXT_SECTION(caml_hot__code_begin)
         .globl  G(caml_hot__code_begin)
-        .globl  G(CAMLSEP(hot,code_begin))
 G(caml_hot__code_begin):
-G(CAMLSEP(hot,code_begin)):
 
         TEXT_SECTION(caml_hot__code_end)
         .globl  G(caml_hot__code_end)
-        .globl  G(CAMLSEP(hot,code_end))
 G(caml_hot__code_end):
-G(CAMLSEP(hot,code_end)):
 #endif
 
 #if defined(SYS_macosx)
