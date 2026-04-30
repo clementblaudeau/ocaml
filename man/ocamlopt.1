@@ -464,13 +464,15 @@ applications, and parameter order becomes strict.
 .TP
 .BI \-o " filename"
 Specify the name of the final output file, whether it is an executable, a
-library
+compiled object
+.RB ( \-c
+option), a library
 .RB ( \-a
 option), a packed object
 .RB ( \-pack
 option), a dynlinkable plugin
 .RB ( \-shared
-option) or a C object file
+option) or a C source or object file
 .RB ( \-output\-obj
 and
 .B \-output\-complete\-obj
