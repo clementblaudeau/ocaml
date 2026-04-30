@@ -132,16 +132,22 @@ does not need
 .BR ocamlrun (1)
 to run.
 .P
+Two versions of the native-code compiler exist:
+.B ocamlopt.byte
+is a bytecode executable (i.e. compiled with
+.BR ocamlc (1)),
+while
 .B ocamlopt.opt
-is the same compiler as
-.BR ocamlopt ,
-but compiled with itself instead of with the bytecode compiler
-.BR ocamlc (1).
-Thus, it behaves exactly like
-.BR ocamlopt ,
-but compiles faster.
+is a native executable (i.e. compiled with
+.BR ocamlopt (1)
+itself).
 .B ocamlopt.opt
-is not available in all installations of OCaml.
+may not be available in all installations of OCaml.
+.B ocamlopt
+is an alias for the fastest of the two, i.e. for
+.B ocamlopt.opt
+if it is available, otherwise for
+.BR ocamlopt.byte .
 .
 .\"********
 .SH OPTIONS

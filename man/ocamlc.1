@@ -170,16 +170,21 @@ phase can be run directly, as in:
 The produced file has the executable bit set, and it manages to launch
 the bytecode interpreter by itself.
 .P
+Two versions of the bytecode compiler exist:
+.B ocamlc.byte
+is a bytecode executable (i.e. compiled with
+.BR ocamlc (1)
+itself), while
 .B ocamlc.opt
-is the same compiler as
-.BR ocamlc ,
-but compiled with the native-code compiler
-.BR ocamlopt (1).
-Thus, it behaves exactly like
-.BR ocamlc ,
-but compiles faster.
+is a native executable (i.e. compiled with
+.BR ocamlopt (1)).
 .B ocamlc.opt
 may not be available in all installations of OCaml.
+.B ocamlc
+is an alias for the fastest of the two, i.e. for
+.B ocamlc.opt
+if it is available, otherwise for
+.BR ocamlc.byte .
 .
 .\"********
 .SH OPTIONS
