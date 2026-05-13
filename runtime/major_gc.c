@@ -447,7 +447,7 @@ static void global_prepare_for_ephe_sweeping (
     participating[i]->ephe_info->must_sweep_ephe = 1;
 }
 
-/* Prepare to mark ephemerons by moving the ephemerons on the live
+/* Prepare to sweep ephemerons by moving the ephemerons on the live
    list to the todo list. This is needed since the live list may
    contain ephemerons with unmarked keys, which need to be
    cleaned. This code is executed exactly once per major cycle per
