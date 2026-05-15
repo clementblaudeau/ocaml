@@ -271,10 +271,6 @@ Working version
   counter-example search space.
   (Florian Angeletti, review by Gabriel Scherer)
 
-- #19962: avoid dropping attributes attached to package types when pretty
-  printing in surface syntax.
-  (Chet Murthy, review by Nicolás Ojeda Bär)
-
 OCaml 5.5.0
 -----------
 
@@ -1065,6 +1061,10 @@ OCaml 5.5.0
   fixing an incorrect error message when installing OCaml through opam on
   OpenSUSE with the site-config package installed.
   (David Allsopp, review by Edwin Török, report by Edwin Török)
+
+- #14797: avoid dropping attributes attached to package types when pretty
+  printing in surface syntax.
+  (Chet Murthy, review by Nicolás Ojeda Bär)
 
 OCaml 5.4.0 (9 October 2025)
 ----------------------------
