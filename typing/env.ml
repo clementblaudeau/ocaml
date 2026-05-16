@@ -1607,37 +1607,32 @@ let find_shadowed_types path env =
 (* Expand manifest module type names at the top of the given module type *)
 let rec scrape_alias env ~allow_transparent ?path mty =
   let open Subst.Lazy in
-  match mty, path, allow_transparent with
-    MtyL_ident p, _, _ ->
+  match mty with
+    MtyL_ident p ->
       begin try
         scrape_alias env ~allow_transparent
           (find_modtype_expansion_lazy p env) ?path
       with Not_found ->
         mty
       end
-  | MtyL_static_alias path, _, _ ->
+  | MtyL_static_alias path ->
       begin try
         scrape_alias env ~allow_transparent
           ((find_module_lazy path env).mdl_type) ~path
-      with Not_found ->
-        (*Location.prerr_warning Location.none
-          (Warnings.No_cmi_file (Path.name path));*)
-        mty
+      with Not_found -> mty
       end
-  | MtyL_transparent (path, None), _, false ->
+  | MtyL_transparent (path, None) when not allow_transparent ->
       begin try
-        scrape_alias env ~allow_transparent:false
+        scrape_alias env ~allow_transparent
           ((find_module_lazy path env).mdl_type) ~path
-      with Not_found ->
-        (*Location.prerr_warning Location.none
-          (Warnings.No_cmi_file (Path.name path));*)
-        mty
+      with Not_found -> mty
       end
-  | MtyL_transparent (path, Some(mty)), _, false ->
-      scrape_alias env ~allow_transparent:false ~path mty
-  | mty, Some path, _ ->
-      !strengthen ~aliasable:true env mty path
-  | _ -> mty
+  | MtyL_transparent (path, Some mty) when not allow_transparent ->
+      scrape_alias env ~allow_transparent ~path mty
+  | mty ->
+      match path with
+      | Some path -> !strengthen ~aliasable:true env mty path
+      | _ -> mty
 
 (* Given a signature and a root path, prefix all idents in the signature
    by the root path and build the corresponding substitution. *)
