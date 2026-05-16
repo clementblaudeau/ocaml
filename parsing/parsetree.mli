@@ -893,7 +893,7 @@ and module_type_desc =
   | Pmty_typeof of module_expr  (** [module type of ME] *)
   | Pmty_extension of extension  (** [[%id]] *)
   | Pmty_alias of Longident.t loc  (** [(module M)] *)
-  | Pmty_transparent of (Longident.t loc) * (module_type option)
+  | Pmty_transparent of Longident.t loc * module_type option
   (** [Pmty_transparent(P, S)] represents:
       - [(= P :> _ )] when [S] is [None],
       - [(= P :> T)] when [S] is [Some T]

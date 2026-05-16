@@ -141,7 +141,7 @@ module Lazy : sig
     | MtyL_signature of signature
     | MtyL_functor of functor_parameter * modtype
     | MtyL_static_alias of Path.t
-    | MtyL_transparent of Path.t * (modtype option)
+    | MtyL_transparent of Path.t * modtype option
 
   and modtype_declaration =
     {
