@@ -101,13 +101,15 @@ let rec path_concat head p =
 (* Extract a signature from a module type *)
 
 let extract_sig env loc mty =
-  match Env.scrape_alias ~allow_transparent:false env mty  with
+  match Env.scrape_alias ~allow_transparent:false env mty with
     Mty_signature sg -> sg
     (* The signature of unlinked modules aliases (when using
        [-no-alias-deps]) cannot be extracted *)
   | Mty_static_alias path
-  | Mty_transparent (path, _) ->
+  | Mty_transparent (path, None) ->
      raise(Error(loc, env, Cannot_scrape_alias path))
+  | Mty_transparent (_path, Some _) ->
+      Misc.fatal_error "scrape_alias should not return an alias signature"
   | _ -> raise(Error(loc, env, Signature_expected))
 
 let extract_sig_open env loc mty =
@@ -118,7 +120,7 @@ let extract_sig_open env loc mty =
   | Mty_static_alias path
   | Mty_transparent (path, None) ->
       raise(Error(loc, env, Cannot_scrape_alias path))
-  | Mty_transparent (_path, _) ->
+  | Mty_transparent (_path, Some _) ->
       Misc.fatal_error "scrape_alias should not return an alias signature"
   | mty -> raise(Error(loc, env, Structure_expected mty))
 
