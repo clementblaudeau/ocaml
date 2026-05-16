@@ -119,7 +119,7 @@ let extract_sig_open env loc mty =
   | Mty_transparent (path, None) ->
       raise(Error(loc, env, Cannot_scrape_alias path))
   | Mty_transparent (_path, _) ->
-      failwith "scrape_alias should not return an alias signature"
+      Misc.fatal_error "scrape_alias should not return an alias signature"
   | mty -> raise(Error(loc, env, Structure_expected mty))
 
 (* Compute the environment after opening a module *)
