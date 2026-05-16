@@ -532,15 +532,33 @@ and try_modtypes ~core ~direction ~loc env subst mty1 mty2 orig_shape =
   | (Mty_ident p1, _) ->
       let p1 = Env.normalize_modtype_path env p1 in
       begin match expand_modtype_path env p1 with
-      | Some p1 ->
-          try_modtypes ~core ~direction ~loc env subst p1 mty2 orig_shape
+      | Some p1_exp ->
+          begin match try_modtypes ~core ~direction ~loc env subst
+                        p1_exp mty2 orig_shape with
+          | Ok _ as ok -> ok
+          | Error (Error.After_alias_expansion inner_diff) ->
+              (* The inner diff was built using the expanded form;
+                 restore the original Mty_ident for display. *)
+              Error (Error.After_alias_expansion
+                       { inner_diff with got = mty1 })
+          | Error _ as err -> err
+          end
       | None -> Error (Error.Mt_core Abstract_module_type)
       end
   | (_, Mty_ident p2) ->
       let p2 = Env.normalize_modtype_path env (Subst.modtype_path subst p2) in
       begin match expand_modtype_path env p2 with
-      | Some p2 ->
-          try_modtypes ~core ~direction ~loc env subst mty1 p2 orig_shape
+      | Some p2_exp ->
+          begin match try_modtypes ~core ~direction ~loc env subst
+                        mty1 p2_exp orig_shape with
+          | Ok _ as ok -> ok
+          | Error (Error.After_alias_expansion inner_diff) ->
+              (* The inner diff was built using the expanded form;
+                 restore the original Mty_ident for display. *)
+              Error (Error.After_alias_expansion
+                       { inner_diff with expected = mty2 })
+          | Error _ as err -> err
+          end
       | None ->
           begin match mty1 with
           | Mty_functor _ ->

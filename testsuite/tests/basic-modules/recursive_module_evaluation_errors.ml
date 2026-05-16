@@ -93,22 +93,39 @@ module F(X: sig module type t module M: t end) = struct
   and B: sig val value: unit end = struct let value  = A.f () end
 end
 [%%expect {|
-Lines 5-8, characters 8-5:
-5 | ........struct
-6 |     module M = X.M
-7 |     let f () = B.value
-8 |   end
-Error: Cannot safely evaluate the definition of the following cycle
-       of recursively-defined modules: A -> B -> A.
-       There are no safe modules in this cycle (see manual section 12.2).
-Line 3, characters 4-17:
-3 |     module M: X.t
-        ^^^^^^^^^^^^^
-  Module "A" defines an unsafe module, "M" .
-Line 9, characters 13-28:
-9 |   and B: sig val value: unit end = struct let value  = A.f () end
-                 ^^^^^^^^^^^^^^^
-  Module "B" defines an unsafe value, "value" .
+Line 1:
+Error: In module "F":
+       Modules do not match:
+         (= F :> (X : sig module type t module M : t end) ->
+                   sig
+                     module rec A :
+                       sig module M : X.t val f : unit -> unit end
+                     and B : sig val value : unit end
+                   end)
+       is not included in
+         (X : sig module type t module M : t end) ->
+           sig
+             module rec A : sig module M : X.t val f : unit -> unit end
+             and B : sig val value : unit end
+           end
+       In module "F":
+       Modules do not match:
+         sig
+           module rec A : sig module M : X.t val f : unit -> unit end
+           and B : sig val value : unit end
+         end
+       is not included in
+         sig
+           module rec A : sig module M : X.t val f : unit -> unit end
+           and B : sig val value : unit end
+         end
+       In module "F.A":
+       Modules do not match:
+         (= A :> sig module M : (= A.M :> _) val f : unit -> unit end)
+       is not included in
+         sig module M : X.t val f : unit -> unit end
+       In module "F.A.M":
+       Modules do not match: (= A.M :> _) is not included in X.t
 |}]
 
 

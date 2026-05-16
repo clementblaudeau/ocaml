@@ -721,7 +721,7 @@ Error: Signature mismatch:
        Modules do not match:
          (= M :> sig val r : '_weak4 list ref end)
        is not included in
-         sig val r : T.t list ref end
+         N.S
        Values do not match:
          val r : '_weak4 list ref
        is not included in

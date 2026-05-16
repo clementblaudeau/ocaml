@@ -2048,7 +2048,7 @@ Error: The functor application "Set.Make(Set)(A)" is ill-typed.
                         module Make : (= Set.Make :> _)
                       end)
           is not included in
-            sig type t val compare : t -> t -> int end
+            Set.OrderedType
           The type "t" is required but not provided
           File "set.mli", line 52, characters 4-10: Expected declaration
           The value "compare" is required but not provided

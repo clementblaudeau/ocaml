@@ -168,7 +168,7 @@ and make_aliases_absent_sig sg =
 let scrape_for_type_of env mty =
   let rec loop env path mty =
     match mty, path with
-    | Mty_static_alias path, _ -> begin
+    | (Mty_static_alias path | Mty_transparent (path, None)), _ -> begin
         try
           let md = Env.find_module path env in
           loop env (Some path) md.md_type
@@ -509,7 +509,8 @@ and remove_aliases_sig env args sg =
   | Sig_module(id, md, rs, priv) :: rem  ->
       let mty =
         match md.md_type with
-          Mty_static_alias p when args.exclude id p ->
+          (Mty_static_alias p | Mty_transparent (p, _))
+            when args.exclude id p ->
             md.md_type
         | mty ->
             remove_aliases_mty env args mty

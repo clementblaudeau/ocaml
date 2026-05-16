@@ -503,7 +503,7 @@ Line 3, characters 6-15:
           ^^^^^^^^^
 Error: Signature mismatch:
        Modules do not match:
-         sig type t = x:int * int end
+         (= X_int_int :> sig type t = x:int * int end)
        is not included in
          sig type t = int * int end
        Type declarations do not match:

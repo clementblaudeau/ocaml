@@ -305,7 +305,10 @@ Error: Signature mismatch:
          end
        In module "K":
        Modules do not match:
-         sig type t = K.t class type c = object method m : t/2 end end
+         (= K :> sig
+                   type t = K.t
+                   class type c = object method m : t/2 end
+                 end)
        is not included in
          sig type t class type c = object method m : t end end
        In module "K":
