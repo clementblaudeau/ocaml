@@ -171,10 +171,7 @@ Line 1, characters 14-15:
 1 | module M_S = (M : S)
                   ^
 Error: Signature mismatch:
-       Modules do not match:
-         (= M :> sig type foo = M.foo end)
-       is not included in
-         S
+       Modules do not match: sig type foo = M.foo end is not included in S
        Type declarations do not match:
          type foo = M.foo
        is not included in
@@ -233,7 +230,7 @@ Line 1, characters 14-15:
                   ^
 Error: Signature mismatch:
        Modules do not match:
-         (= M :> sig type foo = M.foo = private .. end)
+         sig type foo = M.foo = private .. end
        is not included in
          S
        Type declarations do not match:
@@ -266,10 +263,7 @@ Line 1, characters 14-15:
                   ^
 Error: Signature mismatch:
        Modules do not match:
-         (= M :> sig
-                   type 'a foo = 'a M.foo = ..
-                   type 'a bar = 'a foo = ..
-                 end)
+         sig type 'a foo = 'a M.foo = .. type 'a bar = 'a foo = .. end
        is not included in
          S
        Type declarations do not match:

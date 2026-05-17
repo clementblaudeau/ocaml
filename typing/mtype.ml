@@ -133,7 +133,8 @@ let strengthen ~aliasable ~alias env mty path =
     strengthen_lazy ~aliasable env (Subst.Lazy.of_modtype mty) path
     |> Subst.Lazy.force_modtype in
   match mty, (alias && aliasable) with
-  | Mty_transparent(_,_), _
+  | Mty_transparent (_,_), _
+  | Mty_static_alias _, _
   | _, false -> mty
   | _, true -> Mty_transparent(path, Some(mty))
 

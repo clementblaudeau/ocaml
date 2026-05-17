@@ -2042,11 +2042,11 @@ Error: The functor application "Set.Make(Set)(A)" is ill-typed.
           is not included in
             Set.OrderedType
           Modules do not match:
-            (= Set :> sig
-                        module type OrderedType = Set.OrderedType
-                        module type S = Set.S
-                        module Make : (= Set.Make :> _)
-                      end)
+            sig
+              module type OrderedType = Set.OrderedType
+              module type S = Set.S
+              module Make : (= Set.Make :> _)
+            end
           is not included in
             Set.OrderedType
           The type "t" is required but not provided

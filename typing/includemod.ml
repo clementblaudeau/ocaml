@@ -580,25 +580,27 @@ and try_modtypes ~core ~direction ~loc env subst mty1 mty2 orig_shape =
       Ok (Tcoerce_none, orig_shape)
 
   (* Static aliases (downgrade) *)
-  | Mty_static_alias p1, _ -> begin
+  | Mty_static_alias p1, _ ->
       (* Aliases [module X = P1] can be reified to the (strengthened) signature
          of [P1], dropping the aliasing information *)
-      begin match expand_module_alias ~strengthen:true env p1 with
-      | Error e -> Error (Error.Mt_core e)
-      | Ok mty1 ->
-          match strengthened_modtypes ~core ~direction ~loc ~aliasable:true
-                  env subst mty1 p1 mty2 orig_shape
-          with
-          | Ok _ as x -> x
-          | Error reason -> begin
-              match mty2 with
-              | Mty_static_alias _ | Mty_transparent _ ->
-                  Error Error.(Mt_core Incompatible_aliases)
-              | _ ->
-                  Error (Error.After_alias_expansion reason)
-            end
+      begin
+        match
+          let mty1 = (Env.find_module p1 env).md_type in
+          let mty1_str =
+            Mtype.strengthen ~aliasable:true ~alias:false env mty1 p1 in
+          modtypes ~core ~direction ~loc env subst mty1_str mty2 orig_shape
+        with
+        | Ok _ as x -> x
+        | Error reason -> begin
+            match mty2 with
+            | Mty_static_alias _ | Mty_transparent _ ->
+                Error Error.(Mt_core Incompatible_aliases)
+            | _ ->
+                Error (Error.After_alias_expansion reason)
+          end
+        | exception Not_found ->
+            Error Error.((Mt_core (Unbound_module_path p1)))
       end
-    end
 
   (* Transparent signatures - with equal paths *)
   | Mty_transparent (p1, mty1_opt), Mty_transparent (p2, mty2_opt)
@@ -639,7 +641,7 @@ and try_modtypes ~core ~direction ~loc env subst mty1 mty2 orig_shape =
   | Mty_transparent (_, Some mty1), _ ->
       (* If no previous case matched, transparent signatures [(= P :> mty1)] can
          be downgraded to [mty1], losing the alias information. There is no need
-         to strengthen mty1, it should already be (by invariant) *)
+         to strengthen mty1, it must already be (by invariant) *)
       try_modtypes ~core ~direction ~loc env subst mty1 mty2 orig_shape
 
   (* Structural signatures *)

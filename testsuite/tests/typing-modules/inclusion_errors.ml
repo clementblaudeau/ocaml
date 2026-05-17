@@ -676,7 +676,7 @@ Line 3, characters 40-41:
                                             ^
 Error: Signature mismatch:
        Modules do not match:
-         (= M :> sig val r : '_weak3 list ref end)
+         sig val r : '_weak3 list ref end
        is not included in
          sig val r : t list ref end
        Values do not match:
@@ -719,7 +719,7 @@ Line 22, characters 25-26:
                               ^
 Error: Signature mismatch:
        Modules do not match:
-         (= M :> sig val r : '_weak4 list ref end)
+         sig val r : '_weak4 list ref end
        is not included in
          N.S
        Values do not match:

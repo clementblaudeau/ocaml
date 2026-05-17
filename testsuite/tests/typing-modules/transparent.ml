@@ -96,7 +96,7 @@ module F : (Y : (= X0 :> _)) -> (= X0 :> _)
 
 (* Dynamic aliases are a subtype of static ones *)
 module X0 = struct end
-module TestSub : sig module X1 = X0 end =
+module TestSub : sig module X1 = X0 [@@static_alias] end =
   struct module X1 = X0 [@@dynamic_alias] end
 [%%expect{|
 module X0 : sig end
@@ -109,7 +109,19 @@ module TestSub : sig module X1 = X0 [@@dynamic_alias] end =
   struct module X1 = X0 [@@static_alias] end
 [%%expect{|
 module X0 : sig end
-module TestSub : sig module X1 : (= X0 :> _) end
+Line 3, characters 2-44:
+3 |   struct module X1 = X0 [@@static_alias] end
+      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Error: Signature mismatch:
+       Modules do not match:
+         sig module X1 = X0 end
+       is not included in
+         sig module X1 : (= X0 :> _) end
+       In module "X1":
+       Modules do not match:
+         (module X0) [@static_alias]
+       is not included in
+         (= X0 :> _)
 |}]
 
 (* Dynamic aliases are a subtype of other dynamic aliases with equivalent
@@ -324,14 +336,22 @@ module X3 : sig type t = X0.t = A | B val x : t val y : t end
 |}]
 
 
-(* Transparent ascription on module expressions *)
+(* Transparent ascription on module expressions fails for now: X0 is typed as a
+   static alias *)
 module X0 = struct type t = A | B let x = A end
-module X1 = (X0: (=X0 :> sig type t end))
-module X2 = (X0: (=X0 :> sig end))
+module X1 = (X0 : (=X0 :> sig type t end))
+module X2 = (X0 : (=X0 :> sig end))
 [%%expect {|
 module X0 : sig type t = A | B val x : t end
-module X1 : (= X0 :> sig type t = X0.t end)
-module X2 : (= X0 :> sig end)
+Line 2, characters 13-15:
+2 | module X1 = (X0 : (=X0 :> sig type t end))
+                 ^^
+Error: Signature mismatch:
+       Modules do not match:
+         (module X0) [@static_alias]
+       is not included in
+         (= X0 :> sig type t = X0.t end)
+Unexecuted phrases: 1 phrases did not execute due to an error
 |}]
 
 (** Invalid attributes throw an error. We test that the [@dynamic_alias]
@@ -405,7 +425,7 @@ and X2 : sig module X : (= X0 :> _) end
 module F (X : sig type t end) = struct type u = X.t type v end
 module G = F [@@dynamic_alias]
 module X0 = struct type t end
-module X1 : (= X0 :> _ ) = X0 [@@dynamic_alias]
+module X1 : (= X0 :> _ ) = X0 [@dynamic_alias]
 module R = G(struct type t = int end)
 module S = G(X1)
 [%%expect {|
@@ -498,7 +518,7 @@ Error: Signature mismatch:
          sig module A : (= X1 :> _) end
        In module "A":
        Modules do not match:
-         (= A :> (module X0) [@static_alias])
+         (module X0) [@static_alias]
        is not included in
          (= X1 :> _)
 |}]
