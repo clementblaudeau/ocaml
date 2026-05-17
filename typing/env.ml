@@ -1631,7 +1631,8 @@ let rec scrape_alias env ~allow_transparent ?path mty =
       scrape_alias env ~allow_transparent ~path mty
   | mty ->
       match path with
-      | Some path -> !strengthen ~aliasable:true env mty path
+      | Some path ->
+          !strengthen ~aliasable:(is_aliasable path env) env mty path
       | _ -> mty
 
 (* Given a signature and a root path, prefix all idents in the signature

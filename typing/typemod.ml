@@ -319,7 +319,7 @@ let retype_applicative_functor_type ~loc env funct arg =
   let mty_functor = (Env.find_module funct env).md_type in
   let mty_arg = (Env.find_module arg env).md_type in
   let mty_param =
-    match Env.scrape_alias ~allow_transparent:true env mty_functor with
+    match Env.scrape_alias ~allow_transparent:false env mty_functor with
     | Mty_functor (Named (_, mty_param), _) -> mty_param
     | _ -> assert false (* could trigger due to MPR#7611 *)
   in

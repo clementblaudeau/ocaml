@@ -577,6 +577,33 @@ Error: Signature mismatch:
 Unexecuted phrases: 1 phrases did not execute due to an error
 |}]
 
+(* Interaction between retyping of applicative (via signature constraints) and
+   transparent aliases *)
+module F1 (X : sig type t end) = struct type t = X.t end
+module F2 = F1 [@@dynamic_alias]
+module type S = sig
+  module M : sig type t type u end
+  type t = F2(M).t
+end
+module type S_pass = S with type M.u := float (* should pass *)
+module type S_fail = S with type M.t := float (* should fail *)
+[%%expect{|
+module F1 : (X : sig type t end) -> sig type t = X.t end
+module F2 : (= F1 :> _)
+module type S = sig module M : sig type t type u end type t = F2(M).t end
+module type S_pass = sig module M : sig type t end type t = F2(M).t end
+Line 8, characters 21-45:
+8 | module type S_fail = S with type M.t := float (* should fail *)
+                         ^^^^^^^^^^^^^^^^^^^^^^^^
+Error: This "with" constraint on "M.t" makes the applicative functor
+       type "F2(M).t" ill-typed in the constrained signature:
+       Modules do not match:
+         (= M :> sig type u = M.u end)
+       is not included in
+         sig type t end
+       The type "t" is required but not provided
+|}]
+
 
 (** 8. remove_aliases_mty: transparent signatures survive in functor parameters *)
 
