@@ -1529,7 +1529,7 @@ and transl_modtype_aux env smty =
         mkmty (Tmty_static_alias (path, lid)) (Mty_static_alias path) env loc
           smty.pmty_attributes
       else if has_dynamic_alias smty.pmty_attributes then
-        mkmty (Tmty_transparent (path, lid))
+        mkmty (Tmty_transparent (path, lid, None))
           (Mty_transparent (path, None)) env loc smty.pmty_attributes
       else
         (* Fallback case. Until transparent ascription is extended to support
@@ -1541,7 +1541,7 @@ and transl_modtype_aux env smty =
       let path = transl_module_alias loc env lid.txt in
       if not (Env.is_aliasable path env) then
         raise (Error (loc, env, Cannot_alias path));
-      mkmty (Tmty_transparent (path, lid)) (Mty_transparent (path, None))
+      mkmty (Tmty_transparent (path, lid, None)) (Mty_transparent (path, None))
         env loc smty.pmty_attributes
   | Pmty_transparent (lid, Some md) ->
       (* Lookup the path its (strengthened) signature *)
@@ -1552,12 +1552,12 @@ and transl_modtype_aux env smty =
       let mty_path =
         Mtype.strengthen ~aliasable ~alias:true env md_path.md_type path in
       (* Translate the user-provided signature *)
-      let { mty_type } = transl_modtype env md in
+      let mty = transl_modtype env md in
       (* Check that the user-provided signature is a supertype of the
          module's strengthened signature *)
       let () =
         match
-          Includemod.check_modtype_inclusion ~loc env mty_path path mty_type
+          Includemod.check_modtype_inclusion ~loc env mty_path path mty.mty_type
         with
         | None -> ()
         | Some explanation ->
@@ -1566,13 +1566,13 @@ and transl_modtype_aux env smty =
       in
       (* Strengthen the user-provided signature *)
       let mty_type_str =
-        Mtype.strengthen ~aliasable:false ~alias:false env mty_type path |>
+        Mtype.strengthen ~aliasable:false ~alias:false env mty.mty_type path |>
         (* simplify chains of ascriptions, e.g. [(= P1 :> (= P2 :> _))] into [(=
            P1 :> _)]*)
         Env.scrape_alias env ~allow_transparent:false
       in
       mkmty
-        (Tmty_transparent (path, lid))
+        (Tmty_transparent (path, lid, Some mty))
         (Mty_transparent (path, Some mty_type_str))
         env loc smty.pmty_attributes
   | Pmty_signature ssg ->

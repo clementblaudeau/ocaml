@@ -554,7 +554,7 @@ and module_type_desc =
   | Tmty_with of module_type * (Path.t * Longident.t loc * with_constraint) list
   | Tmty_typeof of module_expr
   | Tmty_static_alias of Path.t * Longident.t loc
-  | Tmty_transparent of Path.t * Longident.t loc
+  | Tmty_transparent of Path.t * Longident.t loc * module_type option
 
 and primitive_coercion =
   {

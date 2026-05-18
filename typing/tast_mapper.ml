@@ -576,8 +576,9 @@ let module_type sub x =
     | Tmty_ident (path, lid) -> Tmty_ident (path, map_loc_lid sub lid)
     | Tmty_static_alias (path, lid) ->
         Tmty_static_alias (path, map_loc_lid sub lid)
-    | Tmty_transparent (path, lid) ->
-        Tmty_transparent (path, map_loc_lid sub lid)
+    | Tmty_transparent (path, lid, md_opt) ->
+        Tmty_transparent (path, map_loc_lid sub lid,
+                          Option.map (sub.module_type sub) md_opt)
     | Tmty_signature sg -> Tmty_signature (sub.signature sub sg)
     | Tmty_functor (arg, mtype2) ->
         Tmty_functor (functor_parameter sub arg, sub.module_type sub mtype2)

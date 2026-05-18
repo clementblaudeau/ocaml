@@ -687,8 +687,9 @@ let module_type (sub : mapper) mty =
       Tmty_ident (_path, lid) -> attrs, Pmty_ident (map_loc sub lid)
     | Tmty_static_alias (_path, lid) ->
        (add_static_alias attrs loc), Pmty_alias (map_loc sub lid)
-    | Tmty_transparent (_path, lid) ->
-       attrs, Pmty_transparent (map_loc sub lid, None)
+    | Tmty_transparent (_path, lid, md_opt) ->
+       attrs, Pmty_transparent (map_loc sub lid,
+                                Option.map (sub.module_type sub) md_opt)
     | Tmty_signature sg -> attrs, Pmty_signature (sub.signature sub sg)
     | Tmty_functor (arg, mtype2) ->
        attrs,
