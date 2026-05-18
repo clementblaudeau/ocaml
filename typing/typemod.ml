@@ -1523,28 +1523,32 @@ and transl_modtype_aux env smty =
   | Pmty_alias lid ->
       let path = transl_module_alias loc env lid.txt in
       if not (Env.is_aliasable path env) then
-                    raise (Error (loc, env, Cannot_alias path));
-     let open Builtin_attributes in
-     if has_static_alias smty.pmty_attributes then
-       mkmty (Tmty_static_alias (path, lid)) (Mty_static_alias path) env loc
-         smty.pmty_attributes
-     else if has_dynamic_alias smty.pmty_attributes then
-       mkmty (Tmty_transparent (path, lid))
-         (Mty_transparent (path, None)) env loc smty.pmty_attributes
-     else
-       (* Fallback case. Until transparent ascription is extended to support
-          more paths than static aliasing, inference of an ambiguous alias
-          always returns a static one *)
-       mkmty (Tmty_static_alias (path, lid)) (Mty_static_alias path) env loc
+        raise (Error (loc, env, Cannot_alias path));
+      let open Builtin_attributes in
+      if has_static_alias smty.pmty_attributes then
+        mkmty (Tmty_static_alias (path, lid)) (Mty_static_alias path) env loc
+          smty.pmty_attributes
+      else if has_dynamic_alias smty.pmty_attributes then
+        mkmty (Tmty_transparent (path, lid))
+          (Mty_transparent (path, None)) env loc smty.pmty_attributes
+      else
+        (* Fallback case. Until transparent ascription is extended to support
+           more paths than static aliasing, inference of an ambiguous alias
+           always returns a static one *)
+        mkmty (Tmty_static_alias (path, lid)) (Mty_static_alias path) env loc
           smty.pmty_attributes
   | Pmty_transparent (lid, None) ->
-     let path = transl_module_alias loc env lid.txt in
-     mkmty (Tmty_transparent (path, lid)) (Mty_transparent (path, None)) env loc
-       smty.pmty_attributes
+      let path = transl_module_alias loc env lid.txt in
+      if not (Env.is_aliasable path env) then
+        raise (Error (loc, env, Cannot_alias path));
+      mkmty (Tmty_transparent (path, lid)) (Mty_transparent (path, None))
+        env loc smty.pmty_attributes
   | Pmty_transparent (lid, Some md) ->
       (* Lookup the path its (strengthened) signature *)
       let path, md_path = Env.lookup_module ~loc lid.txt env in
       let aliasable = Env.is_aliasable path env in
+      if not aliasable then
+        raise (Error (loc, env, Cannot_alias path));
       let mty_path =
         Mtype.strengthen ~aliasable ~alias:true env md_path.md_type path in
       (* Translate the user-provided signature *)

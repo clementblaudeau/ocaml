@@ -28,7 +28,6 @@ module type DynamicAliasAttributeItem =
   end
 |}]
 
-
 (** 2. Inference *)
 
 (* Strengthening introduces dynamic aliases of module fields *)
@@ -365,7 +364,7 @@ Unexecuted phrases: 1 phrases did not execute due to an error
    Similar tests for the [@static_alias] attribute are in [static_aliases.ml]
 *)
 
-(* Attribute on a non-aliasable path (functor argument) *)
+(* Attribute on a non-aliasable path (functor argument) in module expressions *)
 module X0 = struct end
 module F (_:sig end) = struct end
 module NonAliasablePath(Y:sig end) = struct
@@ -474,53 +473,127 @@ module type T = sig module A : (= X0 :> sig type t = X0.t end) end
 
 (** 6. Error cases *)
 
-(* Non-alias cannot satisfy a transparent signature requirement *)
-module X0 = struct end
-module TestErr (Y : sig end) : (= X0 :> _) = Y
-[%%expect{|
-module X0 : sig end
-Line 5, characters 45-46:
-5 | module TestErr (Y : sig end) : (= X0 :> _) = Y
-                                                 ^
-Error: Signature mismatch:
-       Modules do not match: sig end is not included in (= X0 :> _)
-|}]
-
-(* Different paths: (= P1 :> _) is not a subtype of (= P2 :> _) *)
+(* Different paths: (= P1 :> _) is not a subtype of (= P2 :> _) when P1 and P2
+   are not linked *)
 module X0 = struct end
 module X1 = struct end
 module TestErr : (= X1 :> _) = X0 [@dynamic_alias]
 [%%expect{|
 module X0 : sig end
 module X1 : sig end
-Line 3, characters 31-33:
-3 | module TestErr : (= X1 :> _) = X0 [@dynamic_alias]
+Line 7, characters 31-33:
+7 | module TestErr : (= X1 :> _) = X0 [@dynamic_alias]
                                    ^^
 Error: Signature mismatch:
        Modules do not match: (= X0 :> _) is not included in (= X1 :> _)
 |}]
 
-(* Static alias with different path cannot satisfy transparent *)
+(* Invalid aliases are rejected (ill-formed path) - signature *)
+module type Fail = (= X_does_not_exists.Y :> _)
+[%%expect{|
+Line 1, characters 22-39:
+1 | module type Fail = (= X_does_not_exists.Y :> _)
+                          ^^^^^^^^^^^^^^^^^
+Error: Unbound module "X_does_not_exists"
+|}]
+
+(* Invalid aliases are rejected (functor parameters) - attributes *)
+module F (Y: sig end) = struct module X = Y [@@dynamic_alias] end
+[%%expect{|
+Line 1, characters 42-43:
+1 | module F (Y: sig end) = struct module X = Y [@@dynamic_alias] end
+                                              ^
+Error: Functor arguments and recursive modules (within the
+       recursive definition), such as "Y", cannot be aliased
+|}]
+
+(* Invalid aliases are rejected (functor parameters) - dynamic alias *)
+module F (Y: sig end) = (Y : (= Y :> _))
+[%%expect{|
+Line 1, characters 29-39:
+1 | module F (Y: sig end) = (Y : (= Y :> _))
+                                 ^^^^^^^^^^
+Error: Functor arguments and recursive modules (within the
+       recursive definition), such as "Y", cannot be aliased
+|}]
+
+(* Invalid aliases are rejected (functor parameters) - with sig *)
+module F (Y: sig end) = (Y : (= Y :> sig end))
+[%%expect{|
+Line 1, characters 29-45:
+1 | module F (Y: sig end) = (Y : (= Y :> sig end))
+                                 ^^^^^^^^^^^^^^^^
+Error: Functor arguments and recursive modules (within the
+       recursive definition), such as "Y", cannot be aliased
+|}]
+
+(* Invalid aliases are rejected (functor applications) - no sig *)
 module X0 = struct end
-module X1 = struct end
-module TestErr : sig module A : (= X1 :> _) end =
-  struct module A = X0 end
+module F (_:sig end) = struct end
+module type T = sig module X : (= F(X0) :> _ ) end
 [%%expect{|
 module X0 : sig end
-module X1 : sig end
-Line 4, characters 2-26:
-4 |   struct module A = X0 end
-      ^^^^^^^^^^^^^^^^^^^^^^^^
-Error: Signature mismatch:
-       Modules do not match:
-         sig module A = X0 end
-       is not included in
-         sig module A : (= X1 :> _) end
-       In module "A":
-       Modules do not match:
-         (module X0) [@static_alias]
-       is not included in
-         (= X1 :> _)
+module F : sig end -> sig end
+Line 3, characters 31-46:
+3 | module type T = sig module X : (= F(X0) :> _ ) end
+                                   ^^^^^^^^^^^^^^^
+Error: Functor arguments and recursive modules (within the
+       recursive definition), such as "F(X0)", cannot be aliased
+|}]
+
+(* Invalid aliases are rejected (functor applications) - with sig *)
+module X0 = struct end
+module F (_:sig end) = struct end
+module type T = sig module X : (= F(X0) :> sig end ) end
+[%%expect{|
+module X0 : sig end
+module F : sig end -> sig end
+Line 3, characters 31-52:
+3 | module type T = sig module X : (= F(X0) :> sig end ) end
+                                   ^^^^^^^^^^^^^^^^^^^^^
+Error: Functor arguments and recursive modules (within the
+       recursive definition), such as "F(X0)", cannot be aliased
+|}]
+
+
+(* Invalid aliases are rejected (recursive inside the recursive knot) *)
+module rec X0 : sig end = struct end
+and X1 : sig end = struct module X = X0 [@@dynamic_alias] end
+[%%expect{|
+Line 2, characters 37-39:
+2 | and X1 : sig end = struct module X = X0 [@@dynamic_alias] end
+                                         ^^
+Error: Functor arguments and recursive modules (within the
+       recursive definition), such as "X0", cannot be aliased
+|}]
+
+
+(* Attribute on a non-aliasable path (functor argument) in signatures, no sig *)
+module X0 = struct end
+module F (_:sig end) = struct end
+module type T = functor (Y:sig end) -> sig module X : (= Y :> _) end
+[%%expect {|
+module X0 : sig end
+module F : sig end -> sig end
+Line 3, characters 54-64:
+3 | module type T = functor (Y:sig end) -> sig module X : (= Y :> _) end
+                                                          ^^^^^^^^^^
+Error: Functor arguments and recursive modules (within the
+       recursive definition), such as "Y", cannot be aliased
+|}]
+
+(* Attribute on a non-aliasable path (functor argument) in signatures, with sig *)
+module X0 = struct end
+module F (_:sig end) = struct end
+module type T = functor (Y:sig end) -> sig module X : (= Y :> sig end) end
+[%%expect {|
+module X0 : sig end
+module F : sig end -> sig end
+Line 3, characters 54-70:
+3 | module type T = functor (Y:sig end) -> sig module X : (= Y :> sig end) end
+                                                          ^^^^^^^^^^^^^^^^
+Error: Functor arguments and recursive modules (within the
+       recursive definition), such as "Y", cannot be aliased
 |}]
 
 
