@@ -22,7 +22,7 @@ Line 1, characters 44-46:
                                                 ^^
 Error: Signature mismatch:
        Modules do not match:
-         (= M2 :> sig type t = M2.t end)
+         sig type t = M2.t end
        is not included in
          sig type t = private M3.t end
        Type declarations do not match:
@@ -35,7 +35,7 @@ Line 1, characters 44-45:
                                                 ^
 Error: Signature mismatch:
        Modules do not match:
-         (= M :> sig type t = < m : int > end)
+         sig type t = < m : int > end
        is not included in
          sig type t = private M3.t end
        Type declarations do not match:
@@ -48,7 +48,7 @@ Line 1, characters 44-46:
                                                 ^^
 Error: Signature mismatch:
        Modules do not match:
-         (= M1 :> sig type t = M1.t end)
+         sig type t = M1.t end
        is not included in
          sig type t = private M3.t end
        Type declarations do not match:
@@ -62,7 +62,7 @@ Line 1, characters 53-55:
                                                          ^^
 Error: Signature mismatch:
        Modules do not match:
-         (= M1 :> sig type t = M1.t end)
+         sig type t = M1.t end
        is not included in
          sig type t = private < n : int; .. > end
        Type declarations do not match:
