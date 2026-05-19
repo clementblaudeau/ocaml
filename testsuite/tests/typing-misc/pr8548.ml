@@ -136,7 +136,9 @@ module Assume :
               type finite = [ `Before of Endpoint.t ]
               type infinite = [ `Until_infinity ]
               type +'a range = 'a Test_range.range = private { until : 'a; }
-                constraint 'a = [< `Before of Endpoint.t | `Until_infinity ]
+                constraint 'a =
+                  [< `Before of Endpoint.t & Test_range.Endpoint.t
+                   | `Until_infinity ]
               val until :
                 ([< `Before of Endpoint.t | `Until_infinity ] as 'a) range ->
                 'a

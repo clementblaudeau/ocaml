@@ -60,7 +60,30 @@ module C3 :
     val escaped : char -> string
     val compare : t -> t -> int
     val equal : t -> t -> bool
-    module Ascii : (= Char.Ascii :> _)
+    module Ascii :
+      (= Char.Ascii :> sig
+                         val min : char
+                         val max : char
+                         val is_valid : char -> bool
+                         val is_upper : char -> bool
+                         val is_lower : char -> bool
+                         val is_letter : char -> bool
+                         val is_alphanum : char -> bool
+                         val is_white : char -> bool
+                         val is_blank : char -> bool
+                         val is_graphic : char -> bool
+                         val is_print : char -> bool
+                         val is_control : char -> bool
+                         val is_digit : char -> bool
+                         val digit_to_int : char -> int
+                         val digit_of_int : int -> char
+                         val is_hex_digit : char -> bool
+                         val hex_digit_to_int : char -> int
+                         val lower_hex_digit_of_int : int -> char
+                         val upper_hex_digit_of_int : int -> char
+                         val uppercase : char -> char
+                         val lowercase : char -> char
+                       end)
     val lowercase_ascii : char -> char
     val uppercase_ascii : char -> char
     val seeded_hash : int -> t -> int
@@ -90,7 +113,30 @@ module F :
       val escaped : char -> string
       val compare : t -> t -> int
       val equal : t -> t -> bool
-      module Ascii : (= Char.Ascii :> _)
+      module Ascii :
+        (= Char.Ascii :> sig
+                           val min : char
+                           val max : char
+                           val is_valid : char -> bool
+                           val is_upper : char -> bool
+                           val is_lower : char -> bool
+                           val is_letter : char -> bool
+                           val is_alphanum : char -> bool
+                           val is_white : char -> bool
+                           val is_blank : char -> bool
+                           val is_graphic : char -> bool
+                           val is_print : char -> bool
+                           val is_control : char -> bool
+                           val is_digit : char -> bool
+                           val digit_to_int : char -> int
+                           val digit_of_int : int -> char
+                           val is_hex_digit : char -> bool
+                           val hex_digit_to_int : char -> int
+                           val lower_hex_digit_of_int : int -> char
+                           val upper_hex_digit_of_int : int -> char
+                           val uppercase : char -> char
+                           val lowercase : char -> char
+                         end)
       val lowercase_ascii : char -> char
       val uppercase_ascii : char -> char
       val seeded_hash : int -> t -> int
@@ -105,7 +151,30 @@ module C4 :
     val escaped : char -> string
     val compare : t -> t -> int
     val equal : t -> t -> bool
-    module Ascii : (= Char.Ascii :> _)
+    module Ascii :
+      (= Char.Ascii :> sig
+                         val min : char
+                         val max : char
+                         val is_valid : char -> bool
+                         val is_upper : char -> bool
+                         val is_lower : char -> bool
+                         val is_letter : char -> bool
+                         val is_alphanum : char -> bool
+                         val is_white : char -> bool
+                         val is_blank : char -> bool
+                         val is_graphic : char -> bool
+                         val is_print : char -> bool
+                         val is_control : char -> bool
+                         val is_digit : char -> bool
+                         val digit_to_int : char -> int
+                         val digit_of_int : int -> char
+                         val is_hex_digit : char -> bool
+                         val hex_digit_to_int : char -> int
+                         val lower_hex_digit_of_int : int -> char
+                         val upper_hex_digit_of_int : int -> char
+                         val uppercase : char -> char
+                         val lowercase : char -> char
+                       end)
     val lowercase_ascii : char -> char
     val uppercase_ascii : char -> char
     val seeded_hash : int -> t -> int
@@ -142,7 +211,7 @@ M3'.N'.x;;
 [%%expect{|
 module M'' : sig module N' : sig val x : int end end
 - : int = 1
-module M2 : sig module N : (= M'.N :> _) module N' = N end
+module M2 : sig module N : (= M'.N :> sig val x : int end) module N' = N end
 module M3 : sig module N' : sig val x : int end end
 - : int = 1
 module M3' : sig module N' : sig val x : int end end
@@ -413,7 +482,7 @@ let f (x : t) : T.t = x ;;
 [%%expect{|
 module F : (M : sig end) -> sig type t end
 module T : sig module M : sig end type t = F(M).t end
-module M : (= T.M :> _)
+module M : (= T.M :> sig end)
 type t = F(M).t
 val f : t -> T.t = <fun>
 |}];;
@@ -519,7 +588,7 @@ let f (x : t) : T.t = x
 [%%expect {|
 module F : (M : sig end) -> sig type t end
 module T : sig module M : sig end type t = F(M).t end
-module M : (= T.M :> _)
+module M : (= T.M :> sig end)
 type t = F(M).t
 val f : t -> T.t = <fun>
 |}]
@@ -849,7 +918,30 @@ end = struct
 end;;
 [%%expect{|
 module X : sig module N : sig end end
-module Y : sig module type S = sig module N = X.N end end
+Lines 4-6, characters 6-3:
+4 | ......struct
+5 |   module type S = module type of struct include X end
+6 | end..
+Error: Signature mismatch:
+       Modules do not match:
+         sig module type S = sig module N : (= X.N :> sig end) end end
+       is not included in
+         sig module type S = sig module N = X.N end end
+       Module type declarations do not match:
+         module type S = sig module N : (= X.N :> sig end) end
+       does not match
+         module type S = sig module N = X.N end
+       The second module type is not included in the first
+       At position "module type S = <here>"
+       Module types do not match:
+         sig module N = X.N end
+       is not equal to
+         sig module N : (= X.N :> sig end) end
+       At position "module type S = sig module N : <here> end"
+       Modules do not match:
+         (module X.N) [@static_alias]
+       is not included in
+         (= X.N :> sig end)
 |}];;
 
 module type S = sig

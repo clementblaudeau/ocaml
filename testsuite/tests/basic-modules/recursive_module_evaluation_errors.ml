@@ -121,11 +121,11 @@ Error: In module "F":
          end
        In module "F.A":
        Modules do not match:
-         (= A :> sig module M : (= A.M :> _) val f : unit -> unit end)
+         (= A :> sig module M : (= A.M :> X.t) val f : unit -> unit end)
        is not included in
          sig module M : X.t val f : unit -> unit end
        In module "F.A.M":
-       Modules do not match: (= A.M :> _) is not included in X.t
+       Modules do not match: (= A.M :> X.t) is not included in X.t
 |}]
 
 

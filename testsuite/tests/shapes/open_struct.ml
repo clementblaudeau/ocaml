@@ -101,7 +101,7 @@ include Test
                                };
                  };
  }
-module M : (= Test.M :> _)
+module M : (= Test.M :> sig type t = Test.M.t = A end)
 |}]
 
 module N = M
