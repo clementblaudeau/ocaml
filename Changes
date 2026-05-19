@@ -260,6 +260,9 @@ Working version
   `Nondep_scope` module (`typing/ctype.ml`).
   (Matthew Marques, review by Stefan Muenzel)
 
+- #14759: expose the function parsing OCAMLRUNPARAM for easier testing
+  (Gabriel Scherer, view by Antonin Décimo and Nicolás Ojeda Bär)
+
 ### Build system:
 
 - #14676: Security fix: prevent shell injection in Github Actions workflows
