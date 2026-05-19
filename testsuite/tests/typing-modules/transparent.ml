@@ -35,8 +35,76 @@ module M = struct module X = struct end end
 module M' = struct include M end
 [%%expect {|
 module M : sig module X : sig end end
-module M' : sig module X : (= M.X :> _) end
+module M' : sig module X : (= M.X :> sig end) end
 |}]
+
+
+(* The level of strengthening inside a transparent signature does not matter:
+   the typechecker always strengthens as deep as possible *)
+module X0 = struct module X = struct type t end end
+module type S0 = (= X0 :> _)
+module type S1 = (= X0 :> sig module X : sig type t end end)
+module type S2 = (= X0 :> sig module X : sig type t = X0.X.t end end)
+module type S3 = (= X0 :> sig module X : (= X0.X :> _) end)
+module type S4 = (= X0 :> sig module X : (= X0.X :> sig type t end) end)
+module type S5 = (= X0 :> sig module X : (= X0.X :> sig type t = X0.X.t end) end)
+
+module TestSigEquiv (Y:sig module type A module type B = A end) = struct end
+module TestS01 = TestSigEquiv(struct module type A = S0 module type B = S1 end)
+module TestS12 = TestSigEquiv(struct module type A = S1 module type B = S2 end)
+module TestS23 = TestSigEquiv(struct module type A = S2 module type B = S3 end)
+module TestS34 = TestSigEquiv(struct module type A = S3 module type B = S4 end)
+module TestS45 = TestSigEquiv(struct module type A = S4 module type B = S5 end)
+[%%expect{|
+module X0 : sig module X : sig type t end end
+module type S0 = (= X0 :> _)
+module type S1 =
+  (= X0 :> sig module X : (= X0.X :> sig type t = X0.X.t end) end)
+module type S2 =
+  (= X0 :> sig module X : (= X0.X :> sig type t = X0.X.t end) end)
+module type S3 = (= X0 :> sig module X : (= X0.X :> _) end)
+module type S4 =
+  (= X0 :> sig module X : (= X0.X :> sig type t = X0.X.t end) end)
+module type S5 =
+  (= X0 :> sig module X : (= X0.X :> sig type t = X0.X.t end) end)
+module TestSigEquiv :
+  (Y : sig module type A module type B = A end) -> sig end
+module TestS01 : sig end
+module TestS12 : sig end
+module TestS23 : sig end
+module TestS34 : sig end
+module TestS45 : sig end
+|}]
+
+(* BUG *)
+module X0 = struct module X = struct type t end end
+module type S1 = (= X0 :> sig module X : sig end end)
+module type S2 = (= X0 :> sig module X : sig type t end end)
+module ShouldSucceed (Y: S2) : S1 = Y
+module ShouldFail    (Y: S1) : S2 = Y
+[%%expect{|
+module X0 : sig module X : sig type t end end
+module type S1 = (= X0 :> sig module X : (= X0.X :> sig end) end)
+module type S2 =
+  (= X0 :> sig module X : (= X0.X :> sig type t = X0.X.t end) end)
+module ShouldSucceed : (Y : S2) -> S1
+Line 5, characters 36-37:
+5 | module ShouldFail    (Y: S1) : S2 = Y
+                                        ^
+Error: Signature mismatch:
+       Modules do not match:
+         (= X0 :> sig module X : (= X0.X :> sig end) end)
+       is not included in
+         S2
+       In module "X":
+       Modules do not match:
+         (= X0.X :> sig end)
+       is not included in
+         (= X0.X :> sig type t = X0.X.t end)
+       In module "X":
+       The type "t" is required but not provided
+|}]
+
 
 (* Avoidance should introduce dynamic aliases *)
 module X0 = struct end

@@ -121,10 +121,13 @@ and strengthen_lazy_sig ~aliasable env sg p =
 and strengthen_lazy_decl ~aliasable env md p =
   let open Subst.Lazy in
   match md.mdl_type with
-  | MtyL_static_alias _ -> md
-  | _ when aliasable ->
-      {md with mdl_type = MtyL_transparent (p, None)}
-  | mty -> {md with mdl_type = strengthen_lazy ~aliasable env mty p}
+  | MtyL_static_alias _
+  | MtyL_transparent _ -> md
+  | mty ->
+      let mdl_type_str = strengthen_lazy ~aliasable env mty p in
+      {md with mdl_type =
+                 if aliasable then MtyL_transparent(p, Some mdl_type_str)
+                 else mdl_type_str}
 
 let () = Env.strengthen := strengthen_lazy
 

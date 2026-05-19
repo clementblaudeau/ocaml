@@ -1566,10 +1566,10 @@ and transl_modtype_aux env smty =
       in
       (* Strengthen the user-provided signature *)
       let mty_type_str =
-        Mtype.strengthen ~aliasable:false ~alias:false env mty.mty_type path |>
+        Mtype.strengthen ~aliasable ~alias:false env mty.mty_type path
         (* simplify chains of ascriptions, e.g. [(= P1 :> (= P2 :> _))] into [(=
            P1 :> _)]*)
-        Env.scrape_alias env ~allow_transparent:false
+        |> Env.scrape_alias env ~allow_transparent:false
       in
       mkmty
         (Tmty_transparent (path, lid, Some mty))
