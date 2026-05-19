@@ -133,10 +133,10 @@ let strengthen ~aliasable ~alias env mty path =
     strengthen_lazy ~aliasable env (Subst.Lazy.of_modtype mty) path
     |> Subst.Lazy.force_modtype in
   match mty, (alias && aliasable) with
-  | Mty_transparent (_,_), _
+  | Mty_transparent (_, _), _
   | Mty_static_alias _, _
   | _, false -> mty
-  | _, true -> Mty_transparent(path, Some(mty))
+  | _, true -> Mty_transparent (path, Some mty)
 
 let strengthen_decl ~aliasable env md p =
   let md = strengthen_lazy_decl ~aliasable env
@@ -216,11 +216,11 @@ let rec nondep_mty env va ids mty =
       (* check for avoidance in both p and mty *)
       let nmty = nondep_mty env va ids mty in
       begin match Path.find_free_opt ids p with
-      | None -> Mty_transparent(p, Some nmty)
+      | None -> Mty_transparent (p, Some nmty)
       | Some _ ->
           let root = Env.normalize_module_path None env p in
           begin match Path.find_free_opt ids root with
-          | None -> Mty_transparent(root, Some nmty)
+          | None -> Mty_transparent (root, Some nmty)
           | Some _ -> nmty (* downgrade, lose the alias *)
           end
       end

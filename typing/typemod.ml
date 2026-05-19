@@ -1009,7 +1009,7 @@ let rec approx_modtype env smty =
         Env.lookup_module_path ~use:false ~load:false
           ~loc:smty.pmty_loc lid.txt env in
       let mty_opt = Option.map (approx_modtype env) md in
-      Mty_transparent(path, mty_opt)
+      Mty_transparent (path, mty_opt)
   | Pmty_signature ssg ->
       Mty_signature(approx_sig env ssg)
   | Pmty_functor(param, sres) ->

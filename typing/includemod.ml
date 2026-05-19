@@ -634,7 +634,7 @@ and try_modtypes ~core ~direction ~loc env subst mty1 mty2 orig_shape =
       | Error e -> Error (Error.Mt_core e)
       | Ok mty1 ->
           try_modtypes ~core ~direction ~loc env subst
-            (Mty_transparent(p1, Some mty1)) mty2 orig_shape
+            (Mty_transparent (p1, Some mty1)) mty2 orig_shape
     end
 
   (* Transparent signature - downgrade (with associated signature) *)
