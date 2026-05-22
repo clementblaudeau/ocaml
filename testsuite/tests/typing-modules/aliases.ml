@@ -843,13 +843,13 @@ module type T = sig val x : M.t end
 
 module X = struct module N = struct end end
 module Y : sig
-  module type S = sig module N = X.N end
+  module type S = sig module N = X.N [@@dynamic_alias] end
 end = struct
   module type S = module type of struct include X end
 end;;
 [%%expect{|
 module X : sig module N : sig end end
-module Y : sig module type S = sig module N = X.N end end
+module Y : sig module type S = sig module N = X.N [@@dynamic_alias]  end end
 |}];;
 
 module type S = sig

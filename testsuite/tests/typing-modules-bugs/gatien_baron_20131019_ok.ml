@@ -17,7 +17,7 @@ let f2 (x : (_,_) Hash2.t) = (x : (_,_) Hashtbl.t);;
 
 module Std2 = struct module M = struct type t end end;;
 module Std' = Std2;;
-module M' : module type of Std'.M = Std2.M;;
+module M' : module type of Std'.M = Std2.M [@dynamic_alias];;
 let f3 (x : M'.t) = (x : Std2.M.t);;
 
 (* original report required Core_kernel:

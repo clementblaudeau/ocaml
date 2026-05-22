@@ -122,6 +122,9 @@ and strengthen_lazy_decl ~aliasable env md p =
   let open Subst.Lazy in
   match md.mdl_type with
   | MtyL_static_alias _ -> md
+  (* When possible, replace submodules with aliases. This is correct because
+     strengthening is always used on the signature of the module at [p], so
+     replacing md.mdl_type is a supertype of the alias to [p] *)
   | _ when aliasable -> {md with mdl_type = MtyL_transparent p}
   | mty -> {md with mdl_type = strengthen_lazy ~aliasable env mty p}
 
@@ -136,28 +139,6 @@ let strengthen_decl ~aliasable env md p =
              (Subst.Lazy.of_module_decl md) p in
   Subst.Lazy.force_module_decl md
 
-let rec make_aliases_absent mty =
-  match mty with
-  | Mty_static_alias _ -> mty
-  (* to be changed once transparent signatures contain functor applications *)
-  | Mty_transparent p -> Mty_static_alias p
-  | Mty_signature sg ->
-      Mty_signature(make_aliases_absent_sig sg)
-  | Mty_functor(arg, res) ->
-      Mty_functor(arg, make_aliases_absent res)
-  | mty ->
-      mty
-
-and make_aliases_absent_sig sg =
-  match sg with
-    [] -> []
-  | Sig_module(id, md, rs, priv) :: rem ->
-      let md_type = make_aliases_absent md.md_type in
-      let md = { md with md_type } in
-      Sig_module(id, md, rs, priv) :: make_aliases_absent_sig rem
-  | sigelt :: rem ->
-      sigelt :: make_aliases_absent_sig rem
-
 let scrape_for_type_of env mty =
   let rec loop env path mty =
     match mty, path with
@@ -171,7 +152,7 @@ let scrape_for_type_of env mty =
         strengthen ~aliasable:false env mty path
     | _ -> mty
   in
-  make_aliases_absent (loop env None mty)
+  loop env None mty
 
 (* In nondep_supertype, env is only used for the type it assigns to id.
    Hence there is no need to keep env up-to-date by adding the bindings
